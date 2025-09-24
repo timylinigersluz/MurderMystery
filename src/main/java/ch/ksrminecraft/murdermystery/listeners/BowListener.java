@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.player.PlayerPickupItemEvent;
 
 public class BowListener implements Listener {
 
@@ -49,17 +50,17 @@ public class BowListener implements Listener {
         Role victimRole = RoleManager.getRole(victim.getUniqueId());
 
         if (victimRole == Role.MURDERER) {
-            // legitimer Kill → Murderer tot
             victim.setHealth(0);
             plugin.setMurdererKilledByBow(true);
 
             broadcastKill("🏹 Detective", shooter.getName(), victim.getName(), ChatColor.BLUE);
             plugin.debug("Detective " + shooter.getName() + " hat den Murderer " + victim.getName() + " getötet.");
         } else {
-            // Fehlverhalten → beide sterben, Detective verliert Rolle und kriegt Strafpunkte
             victim.setHealth(0);
             shooter.setHealth(0);
 
+            // Classic: sofort Game Over
+            // Bow-Fallback: Bogen droppt
             RoleManager.setRole(shooter.getUniqueId(), Role.BYSTANDER);
             shooter.getWorld().dropItemNaturally(shooter.getLocation(), ItemManager.createDetectiveBow());
 
@@ -69,6 +70,18 @@ public class BowListener implements Listener {
             int penalty = plugin.getConfig().getInt("punkte-strafe-detective", 5);
             plugin.getPointsManager().applyPenalty(shooter.getUniqueId(), penalty, "Detective hat Innocent getötet");
             shooter.sendMessage(ChatColor.RED + "Du hast einen Unschuldigen getötet! -" + penalty + " Punkte.");
+        }
+    }
+
+    @EventHandler
+    public void onBowPickup(PlayerPickupItemEvent event) {
+        Player p = event.getPlayer();
+        if (ItemManager.isDetectiveBow(event.getItem().getItemStack())) {
+            if (RoleManager.getRole(p.getUniqueId()) == Role.BYSTANDER) {
+                RoleManager.setRole(p.getUniqueId(), Role.DETECTIVE);
+                Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() + " ist der neue Detective!");
+                p.sendTitle(ChatColor.AQUA + "🏹 Neuer Detective!", ChatColor.GREEN + "Du hast den Bogen aufgenommen.", 20, 60, 20);
+            }
         }
     }
 

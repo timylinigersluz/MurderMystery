@@ -1,9 +1,11 @@
 package ch.ksrminecraft.murdermystery.utils;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import org.bukkit.*;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.meta.FireworkMeta;
+import org.bukkit.entity.EntityType;
 
 import java.util.*;
 
@@ -39,6 +41,10 @@ public class GameManager {
     // Runde Stats
     private RoundStats roundStats;
 
+    // Gamemode (classic / bow-fallback)
+    private final boolean bowFallbackMode;
+    private String gameMode;
+
     public GameManager(PointsManager pointsManager, MurderMystery plugin) {
         this.pointsManager = pointsManager;
         this.plugin = plugin;
@@ -46,6 +52,9 @@ public class GameManager {
         this.punkteGewinner = plugin.getConfig().getInt("punkte-gewinner");
         this.punkteMitGewinner = plugin.getConfig().getInt("punkte-mitgewinner");
         this.punkteVerlierer = plugin.getConfig().getInt("punkte-verlierer");
+
+        String mode = plugin.getConfig().getString("gamemode", "classic");
+        this.bowFallbackMode = mode.equalsIgnoreCase("bow-fallback");
 
         this.bossBarManager = new BossBarManager(plugin);
         this.countdownManager = new CountdownManager(this, plugin);
@@ -180,8 +189,39 @@ public class GameManager {
     public void endRound() {
         if (roundStats != null) {
             pointsManager.distributeRoundPoints(roundStats, roles);
+
+            // 🎆 Feuerwerk für Gewinner (Survivors)
+            for (UUID uuid : roundStats.getAllPlayers()) {
+                if (roundStats.hasSurvived(uuid)) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null && p.isOnline()) {
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> launchCelebrationFireworks(p), 40L); // 2s Delay
+                    }
+                }
+            }
         }
         resetGame();
+    }
+
+    private void launchCelebrationFireworks(Player player) {
+        for (int i = 0; i < 3; i++) {
+            int delay = i * 20; // 1 Sekunde Abstand
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                Location loc = player.getLocation();
+                Firework firework = (Firework) loc.getWorld().spawnEntity(loc, EntityType.FIREWORK_ROCKET);
+
+                FireworkMeta meta = firework.getFireworkMeta();
+                meta.addEffect(FireworkEffect.builder()
+                        .with(FireworkEffect.Type.BALL_LARGE)
+                        .withColor(Color.AQUA, Color.GREEN, Color.YELLOW)
+                        .withFade(Color.WHITE)
+                        .trail(true)
+                        .flicker(true)
+                        .build());
+                meta.setPower(1);
+                firework.setFireworkMeta(meta);
+            }, delay);
+        }
     }
 
     public void resetGame() {
@@ -218,6 +258,10 @@ public class GameManager {
         return gameStarted;
     }
 
+    public boolean isBowFallbackMode() {
+        return bowFallbackMode;
+    }
+
     public Set<UUID> getPlayers() {
         return players;
     }
@@ -249,5 +293,13 @@ public class GameManager {
     public void setCountdownTime(int sec) {
         this.countdownTime = sec;
         this.countdownManager.setCountdownTime(sec);
+    }
+
+    public String getGameMode() {
+        return gameMode;
+    }
+
+    public void setGameMode(String mode) {
+        this.gameMode = mode;
     }
 }

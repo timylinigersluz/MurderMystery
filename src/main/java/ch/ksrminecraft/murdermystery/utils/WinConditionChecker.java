@@ -5,7 +5,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class WinConditionChecker {
 
@@ -75,6 +77,13 @@ public class WinConditionChecker {
                                     int punkteMitGewinner,
                                     int punkteVerlierer,
                                     RoundStats stats) {
+        // Prüfe den aktuellen GameMode
+        if ("bow-fallback".equalsIgnoreCase(gameManager.getGameMode())) {
+            broadcast(ChatColor.YELLOW + "Der Detective ist gestorben! Sein Bogen kann aufgenommen werden.");
+            return;
+        }
+
+        // === Classic-Modus → Spiel endet sofort ===
         Player detective = RoleManager.getDetective();
 
         if (plugin.isMurdererKilledByBow()) {

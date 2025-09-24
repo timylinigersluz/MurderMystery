@@ -62,6 +62,13 @@ countdown-seconds: 15
 max-game-seconds: 600
 
 # -------------------------------
+# Spielmodus
+# -------------------------------
+# classic      = Detective tot → Runde endet sofort
+# bow-fallback = Bogen fällt zu Boden → neuer Spieler kann Detective werden
+gamemode: bow-fallback
+
+# -------------------------------
 # Punkte-System (dynamisch)
 # -------------------------------
 # Punkte werden am Rundenende verteilt (RoundStats).

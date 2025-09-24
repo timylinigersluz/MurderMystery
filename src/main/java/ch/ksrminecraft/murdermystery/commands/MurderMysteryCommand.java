@@ -24,6 +24,7 @@ public class MurderMysteryCommand implements CommandExecutor {
         subCommands.add(new LeaveSubCommand(gameManager));
         subCommands.add(new HelpSubCommand(subCommands));
         subCommands.add(new ForcestartSubCommand(gameManager));
+        subCommands.add(new GamemodeSubCommand(gameManager));
 
         // Neuer Admin-Befehl: /mm setspawn <arena>
         subCommands.add(new SetSpawnSubCommand(plugin.getArenaManager(), plugin));

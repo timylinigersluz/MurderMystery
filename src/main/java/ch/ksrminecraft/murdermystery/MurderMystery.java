@@ -13,7 +13,7 @@ public class MurderMystery extends JavaPlugin {
     private static MurderMystery instance;
     private GameManager gameManager;
     private PointsManager pointsManager;
-    private ArenaManager arenaManager; // <--- NEU
+    private ArenaManager arenaManager;
 
     // Debug-Flag aus Config
     private boolean debugEnabled;
@@ -79,6 +79,10 @@ public class MurderMystery extends JavaPlugin {
         if (getServer().getPluginManager().getPlugin("RankPointsAPI") == null) {
             getLogger().severe("RankPointsAPI Plugin nicht gefunden! Punkteverteilung nicht möglich.");
         }
+
+        //Spielmodus setzen
+        String gamemode = getConfig().getString("gamemode", "classic");
+        gameManager.setGameMode(gamemode);
 
         debug("MurderMystery Plugin erfolgreich aktiviert.");
     }

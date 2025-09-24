@@ -117,9 +117,17 @@ public class PlayerManager {
     }
 
     public void resetGame(Set<UUID> players) {
-        mapManager.teleportToMainWorld(players);
+        // Alle Spieler zurück in die Lobby teleportieren
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                sendToLobby(p);   // <-- Änderung: statt MainWorld geht's in die Lobby
+                resetPlayer(p);   // Spieler-Status zurücksetzen (Inventar, Gamemode etc.)
+            }
+        }
+
         players.clear();
-        plugin.debug("Spiel zurückgesetzt: Alle Spieler in MainWorld teleportiert.");
+        plugin.debug("Spiel zurückgesetzt: Alle Spieler in die Lobby teleportiert.");
     }
 
     // ================= Hilfsmethoden =================
