@@ -1,0 +1,20 @@
+name: MurderMystery3
+version: '${project.version}'
+main: ch.ksrminecraft.murdermystery.MurderMystery
+api-version: '1.21'
+#commands:
+  #join:
+    #description: Spiel beitreten
+
+permissions:
+  murdermystery.admin:
+    description: Erlaubt die Verwendung von Admin-Befehlen
+    default: op
+
+
+depend:
+
+softdepend:
+
+authors:
+  - Sergio Chinazzi
