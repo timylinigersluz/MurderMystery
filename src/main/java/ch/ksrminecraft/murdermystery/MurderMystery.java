@@ -1,34 +1,37 @@
 package ch.ksrminecraft.murdermystery;
 
-import ch.ksrminecraft.murdermystery.Commands.JoinCommand;
-import ch.ksrminecraft.murdermystery.Listener.GameListener;
-import ch.ksrminecraft.murdermystery.Utils.GameManager;
-import ch.ksrminecraft.murdermystery.Utils.PointsManager;
-import org.bukkit.Bukkit;
-import org.bukkit.command.CommandMap;
+import ch.ksrminecraft.murdermystery.commands.MurderMysteryCommand;
+import ch.ksrminecraft.murdermystery.commands.MurderMysteryTabCompleter;
+import ch.ksrminecraft.murdermystery.listeners.*;
+import ch.ksrminecraft.murdermystery.utils.ArenaManager;
+import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.utils.PointsManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import java.lang.reflect.Field;
-
-// TODO:
-// Spectators können Spiel noch nicht vorzeitig verlassen
-// Gold farm für bystander zum bogen erspielen
-// eigene Maps bauen
 
 public class MurderMystery extends JavaPlugin {
 
     private static MurderMystery instance;
     private GameManager gameManager;
     private PointsManager pointsManager;
-    private CommandMap commandMap;
+    private ArenaManager arenaManager; // <--- NEU
+
+    // Debug-Flag aus Config
+    private boolean debugEnabled;
 
     @Override
     public void onEnable() {
-
         instance = this;
+
+        // Config laden und Defaults sicherstellen
         getConfig().options().copyDefaults(true);
         saveDefaultConfig();
+        reloadConfig();
 
-        // Config-Werte einlesen und prüfen mit Fallback Wert
+        // Debug-Flag laden
+        debugEnabled = getConfig().getBoolean("debug", false);
+        getLogger().info("Debug-Modus: " + (debugEnabled ? "AKTIVIERT" : "deaktiviert"));
+
+        // Config-Werte einlesen
         int minPlayers = getConfig().getInt("min-players", 3);
         int countdownTime = getConfig().getInt("countdown-seconds", 10);
         if (minPlayers < 3) {
@@ -36,68 +39,84 @@ public class MurderMystery extends JavaPlugin {
             minPlayers = 3;
         }
 
-        // PointsManager mit Config-Daten initialisieren
+        // ArenaManager initialisieren
+        arenaManager = new ArenaManager(this);
+
+        // PointsManager initialisieren
         pointsManager = new PointsManager(getLogger(), this);
 
-        // GameManager mit PointsManager initialisieren
+        // GameManager initialisieren
         gameManager = new GameManager(pointsManager, this);
-
-        // Config-Werte im GameManager einsetzen
         gameManager.setMinPlayers(minPlayers);
         gameManager.setCountdownTime(countdownTime);
 
-        // Listener registrieren
+        // === Listener registrieren ===
         getServer().getPluginManager().registerEvents(new GameListener(gameManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerQuitListener(gameManager), this);
 
-        // Command-Registrierung mit yml geht mit Java 1.21+ nicht mehr ---> ChatGPT Lösung
-        // Alte Methode: getCommand("join").setExecutor(new JoinCommand(gameManager));
-        // CommandMap per Reflection holen laut ChatGPT
-        try {
-            Field commandMapField = Bukkit.getServer().getClass().getDeclaredField("commandMap");
-            commandMapField.setAccessible(true);
-            commandMap = (CommandMap) commandMapField.get(Bukkit.getServer());
-        } catch (Exception e) {
-            getLogger().severe("Failed to get CommandMap!");
-            e.printStackTrace();
+        // Item- und Umgebungsschutz
+        getServer().getPluginManager().registerEvents(new ItemProtectListener(), this);
+        getServer().getPluginManager().registerEvents(new EnvironmentProtectListener(this), this);
+
+        // Waffen-Handling
+        getServer().getPluginManager().registerEvents(new SwordListener(), this);
+        getServer().getPluginManager().registerEvents(new BowListener(this), this);
+
+        debug("Alle Listener erfolgreich registriert.");
+
+        // === Command-Registrierung über plugin.yml ===
+        if (getCommand("mm") != null) {
+            MurderMysteryCommand mmCommand = new MurderMysteryCommand(gameManager);
+            getCommand("mm").setExecutor(mmCommand);
+            getCommand("mm").setTabCompleter(new MurderMysteryTabCompleter(mmCommand.getSubCommands()));
+            debug("Befehl '/mm' erfolgreich registriert.");
+        } else {
+            getLogger().severe("Befehl '/mm' konnte nicht registriert werden – fehlt in plugin.yml?");
         }
-
-        if (commandMap != null) {
-            commandMap.register("murdermystery3", new JoinCommand(gameManager));
-        }
-
-
 
         // RankPointsAPI Check
         if (getServer().getPluginManager().getPlugin("RankPointsAPI") == null) {
             getLogger().severe("RankPointsAPI Plugin nicht gefunden! Punkteverteilung nicht möglich.");
         }
-    }
 
+        debug("MurderMystery Plugin erfolgreich aktiviert.");
+    }
 
     // Plugin Instanz Getter
     public static MurderMystery getInstance() {
         return instance;
     }
 
-    // Getter für GameManager
     public GameManager getGameManager() {
         return gameManager;
     }
 
-    // Getter für PointsManager
     public PointsManager getPointsManager() {
         return pointsManager;
     }
 
-    // Boolean (wird für mehrere Klassen gebraucht, zentral speichern ist einfacher)
+    public ArenaManager getArenaManager() { // <--- NEU
+        return arenaManager;
+    }
+
+    // Murderer-Bogen Kill Status
     private boolean murdererKilledByBow = false;
     public boolean isMurdererKilledByBow() {
         return murdererKilledByBow;
     }
-
     public void setMurdererKilledByBow(boolean murdererKilledByBow) {
         this.murdererKilledByBow = murdererKilledByBow;
     }
 
-}
+    // Debug
+    public void debug(String message) {
+        if (debugEnabled) {
+            getLogger().info("[DEBUG] " + message);
+        }
+    }
 
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+}

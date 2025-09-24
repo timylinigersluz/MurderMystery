@@ -2,19 +2,26 @@ name: MurderMystery3
 version: '${project.version}'
 main: ch.ksrminecraft.murdermystery.MurderMystery
 api-version: '1.21'
-#commands:
-  #join:
-    #description: Spiel beitreten
+
+commands:
+  mm:
+    description: Hauptbefehl für MurderMystery
+    usage: /mm <subcommand>
+    permission: murdermystery.use
 
 permissions:
+  murdermystery.use:
+    description: Erlaubt Nutzung von /mm
+    default: true
+
   murdermystery.admin:
-    description: Erlaubt die Verwendung von Admin-Befehlen
+    description: Erlaubt Admin-Befehle wie /mm forcestart oder /mm stop
     default: op
 
+  murdermystery.join:
+    description: Erlaubt einem Spieler, einer Runde beizutreten
+    default: true
 
-depend:
-
-softdepend:
-
-authors:
-  - Sergio Chinazzi
+  murdermystery.leave:
+    description: Erlaubt einem Spieler, eine Runde zu verlassen
+    default: true
