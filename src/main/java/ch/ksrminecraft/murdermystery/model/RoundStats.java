@@ -8,7 +8,9 @@ public class RoundStats {
     private final Set<UUID> survived = new HashSet<>();
     private final Set<UUID> quitters = new HashSet<>();
     private final Map<UUID, Integer> roundPoints = new HashMap<>();
+    private final Set<UUID> detectiveKilledInnocent = new HashSet<>();
 
+    // --- Kills ---
     public void addKill(UUID player) {
         kills.put(player, kills.getOrDefault(player, 0) + 1);
     }
@@ -17,6 +19,11 @@ public class RoundStats {
         return kills.getOrDefault(player, 0);
     }
 
+    public Map<UUID, Integer> getKillsMap() {
+        return new HashMap<>(kills);
+    }
+
+    // --- Überleben ---
     public void markSurvived(UUID player) {
         survived.add(player);
     }
@@ -25,6 +32,11 @@ public class RoundStats {
         return survived.contains(player);
     }
 
+    public Set<UUID> getSurvivors() {
+        return new HashSet<>(survived);
+    }
+
+    // --- Quitter ---
     public void markQuitter(UUID player) {
         quitters.add(player);
     }
@@ -33,6 +45,11 @@ public class RoundStats {
         return quitters.contains(player);
     }
 
+    public Set<UUID> getQuitters() {
+        return new HashSet<>(quitters);
+    }
+
+    // --- Punkte ---
     public void setPoints(UUID player, int points) {
         roundPoints.put(player, Math.max(0, points));
     }
@@ -50,15 +67,27 @@ public class RoundStats {
         return new HashMap<>(roundPoints);
     }
 
+    // --- Detective-Kills (Fehlabschüsse) ---
+    public void markDetectiveKilledInnocent(UUID detective) {
+        detectiveKilledInnocent.add(detective);
+    }
+
+    public boolean didDetectiveKillInnocent(UUID detective) {
+        return detectiveKilledInnocent.contains(detective);
+    }
+
+    // --- Alle Spieler dieser Runde ---
     public Set<UUID> getAllPlayers() {
         Set<UUID> all = new HashSet<>();
         all.addAll(kills.keySet());
         all.addAll(survived);
         all.addAll(quitters);
         all.addAll(roundPoints.keySet());
+        all.addAll(detectiveKilledInnocent);
         return all;
     }
 
+    // --- Debug-Ausgabe ---
     @Override
     public String toString() {
         return "RoundStats{" +
@@ -66,9 +95,11 @@ public class RoundStats {
                 ", survived=" + survived +
                 ", quitters=" + quitters +
                 ", roundPoints=" + roundPoints +
+                ", detectiveKilledInnocent=" + detectiveKilledInnocent +
                 '}';
     }
 
+    // --- Formatierte Übersicht ---
     public String formatSummary(Map<UUID, String> nameCache) {
         StringBuilder sb = new StringBuilder();
         sb.append("§6===== §eRundenstatistik §6=====\n");
@@ -83,6 +114,7 @@ public class RoundStats {
             if (killsCount > 0) sb.append(" §8| §cKills: ").append(killsCount);
             if (hasSurvived(uuid)) sb.append(" §8| §aÜberlebt");
             if (isQuitter(uuid)) sb.append(" §8| §eQuit");
+            if (didDetectiveKillInnocent(uuid)) sb.append(" §8| §cFehlabschuss");
             if (points != 0) sb.append(" §8| §bPunkte: ").append(points);
 
             sb.append("\n");
@@ -91,6 +123,4 @@ public class RoundStats {
         sb.append("§6=========================");
         return sb.toString();
     }
-
-
 }

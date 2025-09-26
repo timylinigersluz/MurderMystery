@@ -7,7 +7,9 @@ import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.support.*;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -27,6 +29,7 @@ public class GameManager {
     private final GameTimerManager gameTimerManager;
     private final FailSafeManager failSafeManager;
     private final CelebrationManager celebrationManager;
+    private final RoundResultManager roundResultManager;
 
     private final Set<UUID> players = new HashSet<>();     // lebende Spieler
     private final Set<UUID> spectators = new HashSet<>();  // ausgeschiedene Spieler
@@ -36,15 +39,13 @@ public class GameManager {
     private int minPlayers;
     private int countdownTime;
 
-    private int punkteGewinner;
-    private int punkteMitGewinner;
-    private int punkteVerlierer;
-
     private RoundStats roundStats;
-
     private String gameMode;
 
-    public GameManager(PointsManager pointsManager, ArenaManager arenaManager, MurderMystery plugin, ConfigManager configManager) {
+    public GameManager(PointsManager pointsManager,
+                       ArenaManager arenaManager,
+                       MurderMystery plugin,
+                       ConfigManager configManager) {
         this.pointsManager = pointsManager;
         this.arenaManager = arenaManager;
         this.plugin = plugin;
@@ -62,15 +63,13 @@ public class GameManager {
         this.gameTimerManager = new GameTimerManager(this, plugin);
         this.failSafeManager = new FailSafeManager(this, plugin);
         this.celebrationManager = new CelebrationManager(plugin);
+        this.roundResultManager = new RoundResultManager(plugin, pointsManager);
     }
 
     /**
      * Wird beim Reload aufgerufen und aktualisiert interne Werte
      */
     public void reloadFromConfig(ConfigManager configManager) {
-        this.punkteGewinner = configManager.getPointsWin();
-        this.punkteMitGewinner = configManager.getPointsCoWin();
-        this.punkteVerlierer = configManager.getPointsLose();
         this.minPlayers = configManager.getMinPlayers();
         this.countdownTime = configManager.getCountdownSeconds();
         this.gameMode = configManager.getGameMode();
@@ -81,17 +80,24 @@ public class GameManager {
     }
 
     // ----------------- Spieler-Handling -----------------
-    public void handleJoin(Player player) { playerManager.handleJoin(player); }
+    public void handleJoin(Player player) {
+        playerManager.handleJoin(player);
+    }
+
     public void handleLeave(Player player) {
         playerManager.handleLeave(player);
         if (gameStarted && roundStats != null) {
             roundStats.markQuitter(player.getUniqueId());
+            // -3 Punkte Strafe für Leaver sofort
+            pointsManager.applyPenalty(player.getUniqueId(),
+                    Math.abs(configManager.getPointsQuit()),
+                    "Spiel verlassen");
         }
     }
 
     public void eliminate(Player player) {
         playerManager.eliminate(player);
-        Broadcaster.broadcastMessage(players, ChatColor.RED + "Der Mörder hat einen Spieler getötet!");
+        Broadcaster.broadcastMessage(players, ChatColor.RED + "Ein Spieler wurde eliminiert!");
     }
 
     // ----------------- Countdown & Start -----------------
@@ -120,14 +126,19 @@ public class GameManager {
     }
 
     public void checkWinConditions() {
-        winConditionManager.checkWinConditions(players, roles,
-                punkteGewinner, punkteMitGewinner, punkteVerlierer, roundStats);
+        winConditionManager.checkWinConditions(players, roles, roundStats);
     }
 
     // ----------------- Runden-Ende -----------------
-    public void endRound() {
+    public void endRound(RoundResultManager.EndCondition condition) {
         if (roundStats != null) {
-            pointsManager.distributeRoundPoints(roundStats, roles);
+            roundResultManager.handleRoundEnd(
+                    condition,
+                    roles,
+                    roundStats.getKillsMap(),
+                    roundStats.getSurvivors(),
+                    roundStats.getQuitters()
+            );
 
             for (UUID uuid : roundStats.getAllPlayers()) {
                 if (roundStats.hasSurvived(uuid)) {
@@ -140,10 +151,17 @@ public class GameManager {
     }
 
     public void handleTimeout() {
-        Broadcaster.broadcastMessage(players, ChatColor.RED + "⏰ Zeitlimit erreicht! Die Bystander gewinnen.");
-        winConditionManager.forceTimeoutEnd(players, roles,
-                punkteMitGewinner, punkteVerlierer, roundStats);
-        endRound();
+        Broadcaster.broadcastMessage(players, ChatColor.RED + "⏰ Zeitlimit erreicht!");
+        if (roundStats != null) {
+            roundResultManager.handleRoundEnd(
+                    RoundResultManager.EndCondition.TIME_UP,
+                    roles,
+                    roundStats.getKillsMap(),
+                    roundStats.getSurvivors(),
+                    roundStats.getQuitters()
+            );
+        }
+        resetGame();
     }
 
     public void resetGame() {
@@ -164,7 +182,8 @@ public class GameManager {
                             ItemManager.isMurdererSword(item.getItemStack()))
                     .forEach(item -> {
                         item.remove();
-                        plugin.debug("Cleanup: Entfernt Item " + item.getItemStack().getType() +
+                        plugin.debug("Cleanup: Entfernt Item " +
+                                item.getItemStack().getType() +
                                 " in Welt " + world.getName());
                     });
         }
@@ -172,13 +191,14 @@ public class GameManager {
         players.clear();
         spectators.clear();
         roles.clear();
+        RoleManager.clearRoles(); // ✅ Rollen resetten
 
         gameTimerManager.stop();
         failSafeManager.stop();
         roundStats = null;
 
         plugin.setMurdererKilledByBow(false);
-        plugin.debug("resetGame() abgeschlossen → Spieler & Items aufgeräumt.");
+        plugin.debug("resetGame() abgeschlossen → Spieler, Items & Rollen aufgeräumt.");
     }
 
     // ----------------- Hilfsmethoden -----------------
@@ -204,28 +224,64 @@ public class GameManager {
     }
 
     // ----------------- Getter & Setter -----------------
-    public boolean isGameStarted() { return gameStarted; }
-    public Set<UUID> getPlayers() { return players; }
-    public Set<UUID> getSpectators() { return spectators; }
-    public Map<UUID, Role> getRoles() { return roles; }
-    public RoundStats getRoundStats() { return roundStats; }
-    public BossBarManager getBossBarManager() { return bossBarManager; }
-    public int getMinPlayers() { return minPlayers; }
-    public void setMinPlayers(int min) { this.minPlayers = min; }
-    public void setCountdownTime(int sec) { this.countdownTime = sec; this.countdownManager.setCountdownTime(sec); }
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
+    public Set<UUID> getPlayers() {
+        return players;
+    }
+
+    public Set<UUID> getSpectators() {
+        return spectators;
+    }
+
+    public Map<UUID, Role> getRoles() {
+        return roles;
+    }
+
+    public RoundStats getRoundStats() {
+        return roundStats;
+    }
+
+    public BossBarManager getBossBarManager() {
+        return bossBarManager;
+    }
+
+    public int getMinPlayers() {
+        return minPlayers;
+    }
+
+    public void setMinPlayers(int min) {
+        this.minPlayers = min;
+    }
+
+    public void setCountdownTime(int sec) {
+        this.countdownTime = sec;
+        this.countdownManager.setCountdownTime(sec);
+    }
+
     public boolean isPlayerInGame(Player player) {
         UUID uuid = player.getUniqueId();
         return players.contains(uuid) || spectators.contains(uuid);
     }
+
     public boolean isActivePlayer(Player player) {
         return players.contains(player.getUniqueId());
     }
+
     public String getGameMode() {
         return gameMode != null ? gameMode : "classic"; // Fallback
     }
+
     public void setGameMode(String mode) {
         this.gameMode = (mode == null || mode.isBlank()) ? "classic" : mode.toLowerCase();
         configManager.setGamemode(this.gameMode);
         plugin.debug("GameMode gesetzt auf: " + this.gameMode);
+    }
+
+    // --- Proxy-Getter für Detective-Fehlabschüsse ---
+    public boolean didDetectiveKillInnocent(UUID detective) {
+        return roundStats != null && roundStats.didDetectiveKillInnocent(detective);
     }
 }

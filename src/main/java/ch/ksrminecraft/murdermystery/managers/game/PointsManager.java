@@ -41,6 +41,7 @@ public class PointsManager {
 
     /**
      * Punkte einer ganzen Runde verteilen + Statistik ausgeben.
+     * (Wird später durch RoundResultManager ersetzt, bleibt aber als Fallback erhalten.)
      */
     public void distributeRoundPoints(RoundStats stats, Map<UUID, Role> roles) {
         Map<UUID, String> nameCache = new HashMap<>();
@@ -89,6 +90,7 @@ public class PointsManager {
         }
     }
 
+    // --- Punktemanagement ---
     public void addPointsToPlayer(UUID uuid, int points) {
         int safePoints = Math.max(0, points);
         api.addPoints(uuid, safePoints);
@@ -124,6 +126,11 @@ public class PointsManager {
                 " (UUID=" + uuid + "). Grund: " + reason +
                 ". Neuer Punktestand: " + newPoints);
         plugin.debug("Strafe angewendet: -" + applied + " für " + playerName + " (Grund: " + reason + ")");
+    }
+
+    // --- Abfragen ---
+    public int getPoints(UUID uuid) {
+        return api.getPoints(uuid);
     }
 
     private String getPlayerName(UUID uuid) {

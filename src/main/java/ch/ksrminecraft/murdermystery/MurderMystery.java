@@ -56,6 +56,7 @@ public class MurderMystery extends JavaPlugin {
         // Waffen-Handling
         getServer().getPluginManager().registerEvents(new SwordListener(this), this);
         getServer().getPluginManager().registerEvents(new BowListener(this), this);
+        getServer().getPluginManager().registerEvents(new SpecialItemListener(this), this);
 
         debug("Alle Listener erfolgreich registriert.");
 

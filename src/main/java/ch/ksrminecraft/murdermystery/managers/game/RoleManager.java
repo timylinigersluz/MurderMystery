@@ -93,4 +93,10 @@ public class RoleManager {
         MurderMystery.getInstance().debug("Bystander-Abfrage → " + bystanders.size() + " Spieler gefunden.");
         return bystanders;
     }
+
+    public static void clearRoles() {
+        roles.clear();
+        MurderMystery.getInstance().debug("Alle Rollen wurden zurückgesetzt.");
+    }
+
 }
