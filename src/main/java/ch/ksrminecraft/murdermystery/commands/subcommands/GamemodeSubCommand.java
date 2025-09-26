@@ -1,18 +1,18 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
-import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 
 public class GamemodeSubCommand implements SubCommand {
 
     private final GameManager gameManager;
-    private final MurderMystery plugin;
+    private final ConfigManager configManager;
 
-    public GamemodeSubCommand(GameManager gameManager) {
+    public GamemodeSubCommand(GameManager gameManager, ConfigManager configManager) {
         this.gameManager = gameManager;
-        this.plugin = MurderMystery.getInstance();
+        this.configManager = configManager;
     }
 
     @Override
@@ -49,10 +49,9 @@ public class GamemodeSubCommand implements SubCommand {
         }
 
         gameManager.setGameMode(mode);
-        plugin.getConfig().set("gamemode", mode);
-        plugin.saveConfig();
+        configManager.setGamemode(mode);
 
         sender.sendMessage(ChatColor.GREEN + "Spielmodus geändert auf: " + ChatColor.AQUA + mode);
-        plugin.debug("Admin hat Spielmodus geändert: " + mode);
+        configManager.debug("Admin hat Spielmodus geändert: " + mode);
     }
 }

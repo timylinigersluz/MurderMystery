@@ -1,6 +1,7 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.model.Role;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 

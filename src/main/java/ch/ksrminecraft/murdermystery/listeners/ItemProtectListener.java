@@ -1,6 +1,7 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
-import ch.ksrminecraft.murdermystery.utils.ItemManager;
+import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -12,11 +13,18 @@ import org.bukkit.inventory.ItemStack;
 public class ItemProtectListener implements Listener {
 
     private static final String ADMIN_PERMISSION = "murdermystery.admin";
+    private final ConfigManager configManager;
+
+    public ItemProtectListener(ConfigManager configManager) {
+        this.configManager = configManager;
+    }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getWhoClicked() instanceof Player player && player.hasPermission(ADMIN_PERMISSION)) {
-            return;
+        if (event.getWhoClicked() instanceof Player player) {
+            if (player.hasPermission(ADMIN_PERMISSION) && configManager.isAllowAdminMove()) {
+                return; // Admin darf Items bewegen, wenn in config erlaubt
+            }
         }
 
         ItemStack current = event.getCurrentItem();
@@ -27,8 +35,10 @@ public class ItemProtectListener implements Listener {
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getWhoClicked() instanceof Player player && player.hasPermission(ADMIN_PERMISSION)) {
-            return;
+        if (event.getWhoClicked() instanceof Player player) {
+            if (player.hasPermission(ADMIN_PERMISSION) && configManager.isAllowAdminMove()) {
+                return;
+            }
         }
 
         ItemStack dragged = event.getOldCursor();
@@ -39,7 +49,7 @@ public class ItemProtectListener implements Listener {
 
     @EventHandler
     public void onInventoryMove(InventoryMoveItemEvent event) {
-        // Hopper etc. – hier gibt es keinen direkten Spieler
+        // Hopper etc. – kein Spieler
         ItemStack moved = event.getItem();
         if (ItemManager.isDetectiveBow(moved) || ItemManager.isMurdererSword(moved)) {
             event.setCancelled(true);

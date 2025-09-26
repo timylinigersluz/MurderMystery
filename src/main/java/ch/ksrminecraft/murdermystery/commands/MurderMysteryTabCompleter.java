@@ -20,7 +20,7 @@ public class MurderMysteryTabCompleter implements TabCompleter {
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender,
-                                                @NotNull Command cmd,
+                                                @NotNull Command command,
                                                 @NotNull String alias,
                                                 @NotNull String[] args) {
         List<String> suggestions = new ArrayList<>();

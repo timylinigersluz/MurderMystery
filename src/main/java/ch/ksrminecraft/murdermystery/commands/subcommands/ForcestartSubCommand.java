@@ -1,7 +1,7 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;

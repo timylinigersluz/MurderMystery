@@ -1,6 +1,8 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.managers.support;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.managers.effects.Broadcaster;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.scheduler.BukkitTask;
@@ -21,9 +23,6 @@ public class CountdownManager {
         this.bossBarManager = gameManager.getBossBarManager();
     }
 
-    /**
-     * Startet den Countdown mit BossBar.
-     */
     public void startCountdown() {
         if (countdownRunning) {
             plugin.debug("Countdown wurde bereits gestartet.");
@@ -36,10 +35,14 @@ public class CountdownManager {
         plugin.debug("Countdown gestartet mit " + countdownTime + " Sekunden.");
         bossBarManager.startLobbyCountdown(countdownTime);
 
+        // 👉 Einmalige Chat-Nachricht
+        Broadcaster.broadcastMessage(gameManager.getPlayers(),
+                ChatColor.GREEN + "Genügend Spieler in der Wartelobby, das Spiel beginnt in Kürze..."
+        );
+
         countdownTask = Bukkit.getScheduler().runTaskTimer(
                 plugin,
                 () -> {
-                    // Abbruch, wenn nicht mehr genug Spieler
                     if (gameManager.getPlayers().size() < gameManager.getMinPlayers()) {
                         plugin.debug("Countdown abgebrochen – Spielerzahl unter Minimum.");
                         stopCountdown();
@@ -47,7 +50,6 @@ public class CountdownManager {
                         return;
                     }
 
-                    // Countdown fertig → Spielstart
                     if (timeLeft[0] <= 0) {
                         stopCountdown();
                         bossBarManager.cancelLobbyBar();
@@ -56,19 +58,13 @@ public class CountdownManager {
                         return;
                     }
 
-                    // Meldung + BossBar-Update
-                    gameManager.broadcastToPlayers(ChatColor.AQUA + "Spiel startet in " + timeLeft[0] + " Sekunden...");
                     bossBarManager.updateLobbyCountdown(timeLeft[0], countdownTime);
-
                     timeLeft[0]--;
                 },
-                0L, 20L
+                20L, 20L
         );
     }
 
-    /**
-     * Stoppt den Countdown (falls nötig).
-     */
     public void stopCountdown() {
         if (countdownTask != null) {
             countdownTask.cancel();
@@ -77,15 +73,7 @@ public class CountdownManager {
         countdownRunning = false;
     }
 
-    public boolean isCountdownRunning() {
-        return countdownRunning;
-    }
-
-    public void setCountdownTime(int countdownTime) {
-        this.countdownTime = countdownTime;
-    }
-
-    public int getCountdownTime() {
-        return countdownTime;
-    }
+    public boolean isCountdownRunning() { return countdownRunning; }
+    public void setCountdownTime(int countdownTime) { this.countdownTime = countdownTime; }
+    public int getCountdownTime() { return countdownTime; }
 }

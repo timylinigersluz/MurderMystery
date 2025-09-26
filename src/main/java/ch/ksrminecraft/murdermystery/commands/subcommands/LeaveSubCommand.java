@@ -1,7 +1,7 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -42,7 +42,13 @@ public class LeaveSubCommand implements SubCommand {
             return;
         }
 
+        if (!gameManager.isPlayerInGame(player)) {
+            player.sendMessage(ChatColor.YELLOW + "Du befindest dich in keiner laufenden Runde.");
+            return;
+        }
+
         MurderMystery.getInstance().debug("Spieler " + player.getName() + " nutzt /mm leave");
         gameManager.handleLeave(player);
+        player.sendMessage(ChatColor.YELLOW + "Du hast die MurderMystery-Runde verlassen.");
     }
 }

@@ -1,4 +1,4 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.model;
 
 import java.util.*;
 
@@ -68,4 +68,29 @@ public class RoundStats {
                 ", roundPoints=" + roundPoints +
                 '}';
     }
+
+    public String formatSummary(Map<UUID, String> nameCache) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("§6===== §eRundenstatistik §6=====\n");
+
+        for (UUID uuid : getAllPlayers()) {
+            String name = nameCache.getOrDefault(uuid, uuid.toString().substring(0, 8));
+            int killsCount = getKills(uuid);
+            int points = getPoints(uuid);
+
+            sb.append("§7• ").append(name);
+
+            if (killsCount > 0) sb.append(" §8| §cKills: ").append(killsCount);
+            if (hasSurvived(uuid)) sb.append(" §8| §aÜberlebt");
+            if (isQuitter(uuid)) sb.append(" §8| §eQuit");
+            if (points != 0) sb.append(" §8| §bPunkte: ").append(points);
+
+            sb.append("\n");
+        }
+
+        sb.append("§6=========================");
+        return sb.toString();
+    }
+
+
 }

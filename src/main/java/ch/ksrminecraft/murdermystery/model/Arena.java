@@ -1,4 +1,4 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.model;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -49,18 +49,20 @@ public class Arena {
     }
 
     /**
-     * Gibt einen zufälligen Spawn zurück.
+     * Gibt einen zufälligen Spawn zurück:
      * 1. Config-Spawns
-     * 2. Region (falls vorhanden)
+     * 2. Zufälliger Punkt innerhalb Region (falls gesetzt)
      * 3. Welt-Spawn
      */
     public Location getRandomSpawn() {
-        if (!spawnPoints.isEmpty()) {
+        // 1. Vordefinierte Spawnpunkte
+        if (spawnPoints != null && !spawnPoints.isEmpty()) {
             return spawnPoints.get(random.nextInt(spawnPoints.size()));
         }
 
+        // 2. Region fallback
         if (minX != null && maxX != null && minZ != null && maxZ != null && world != null) {
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 20; i++) { // 20 Versuche, brauchbaren Block zu finden
                 int x = random.nextInt(maxX - minX + 1) + minX;
                 int z = random.nextInt(maxZ - minZ + 1) + minZ;
                 int y = world.getHighestBlockYAt(x, z);
@@ -74,8 +76,13 @@ public class Arena {
             }
         }
 
+        // 3. Fallback: Weltspawn oder Default-Serverwelt
         return (world != null)
                 ? world.getSpawnLocation()
                 : Bukkit.getWorlds().get(0).getSpawnLocation();
+    }
+
+    public boolean hasRegion() {
+        return (minX != null && maxX != null && minZ != null && maxZ != null && world != null);
     }
 }

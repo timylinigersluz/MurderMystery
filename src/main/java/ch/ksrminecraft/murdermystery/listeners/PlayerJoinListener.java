@@ -1,14 +1,14 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.BossBarManager;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
-import ch.ksrminecraft.murdermystery.utils.QuitTracker;
+import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.model.QuitTracker;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -18,12 +18,12 @@ public class PlayerJoinListener implements Listener {
 
     private final MurderMystery plugin;
     private final GameManager gameManager;
-    private final FileConfiguration config;
+    private final ConfigManager configManager;
 
-    public PlayerJoinListener(GameManager gameManager) {
+    public PlayerJoinListener(GameManager gameManager, ConfigManager configManager) {
         this.plugin = MurderMystery.getInstance();
         this.gameManager = gameManager;
-        this.config = plugin.getConfig();
+        this.configManager = configManager;
     }
 
     @EventHandler
@@ -31,7 +31,7 @@ public class PlayerJoinListener implements Listener {
         Player p = e.getPlayer();
         plugin.debug("Spieler " + p.getName() + " hat den Server betreten.");
 
-        // Falls Spieler während eines Spiels quitted → zurück in MainWorld setzen
+        // Falls Spieler während eines Spiels gequitted ist → zurück in MainWorld setzen
         if (QuitTracker.hasQuit(p)) {
             QuitTracker.clear(p);
             sendToMainWorld(p);
@@ -48,13 +48,11 @@ public class PlayerJoinListener implements Listener {
         }
 
         // Wenn kein Spiel läuft, aber Countdown schon aktiv → Lobby-BossBar anzeigen
-        if (gameManager.getBossBarManager() != null) {
-            gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
-        }
+        gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
     }
 
     private void sendToLobby(Player p) {
-        String lobbyWorldName = config.getString("worlds.lobby");
+        String lobbyWorldName = configManager.getLobbyWorld();
         World lobby = Bukkit.getWorld(lobbyWorldName);
         if (lobby != null) {
             Location spawn = lobby.getSpawnLocation();
@@ -66,7 +64,7 @@ public class PlayerJoinListener implements Listener {
     }
 
     private void sendToMainWorld(Player p) {
-        String mainWorldName = config.getString("worlds.main");
+        String mainWorldName = configManager.getMainWorld();
         World main = Bukkit.getWorld(mainWorldName);
         if (main != null) {
             p.teleport(main.getSpawnLocation());

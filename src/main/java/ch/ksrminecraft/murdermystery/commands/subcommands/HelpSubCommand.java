@@ -31,19 +31,21 @@ public class HelpSubCommand implements SubCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        sender.sendMessage(ChatColor.AQUA + "MurderMystery Befehle:");
+        sender.sendMessage(ChatColor.GOLD + "===== " + ChatColor.AQUA + "MurderMystery Befehle" + ChatColor.GOLD + " =====");
 
         boolean isAdmin = sender instanceof Player p && p.hasPermission("murdermystery.admin");
 
         for (SubCommand sub : subCommands) {
             String name = sub.getName();
 
-            // Admin-Befehle nur anzeigen, wenn Spieler Admin ist
+            // Admin-Befehle nur für Admins
             if ((name.equalsIgnoreCase("forcestart") || name.equalsIgnoreCase("stop")) && !isAdmin) {
                 continue;
             }
 
-            sender.sendMessage(ChatColor.GRAY + sub.getUsage() + ChatColor.WHITE + " - " + sub.getDescription());
+            sender.sendMessage(ChatColor.YELLOW + sub.getUsage() + ChatColor.GRAY + " - " + ChatColor.WHITE + sub.getDescription());
         }
+
+        sender.sendMessage(ChatColor.GOLD + "===============================");
     }
 }

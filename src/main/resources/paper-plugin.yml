@@ -1,13 +1,7 @@
-name: MurderMystery3
+name: MurderMystery
 version: '${project.version}'
 main: ch.ksrminecraft.murdermystery.MurderMystery
 api-version: '1.21'
-
-commands:
-  mm:
-    description: Hauptbefehl für MurderMystery
-    usage: /mm <subcommand>
-    permission: murdermystery.use
 
 permissions:
   murdermystery.use:

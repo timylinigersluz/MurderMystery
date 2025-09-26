@@ -1,7 +1,7 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -46,8 +46,9 @@ public class StopSubCommand implements SubCommand {
             return;
         }
 
-        MurderMystery.getInstance().debug("Admin " + player.getName() + " hat /mm stop genutzt.");
+        MurderMystery.getInstance().debug("Admin " + player.getName() + " hat den Befehl /mm stop genutzt.");
         gameManager.resetGame();
-        player.sendMessage(ChatColor.YELLOW + "Die MurderMystery-Runde wurde beendet und zurückgesetzt.");
+
+        player.sendMessage(ChatColor.GREEN + "Die MurderMystery-Runde wurde erfolgreich beendet und zurückgesetzt.");
     }
 }

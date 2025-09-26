@@ -1,11 +1,13 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.RankPointsAPI.PointsAPI;
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.model.Role;
+import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -38,8 +40,55 @@ public class PointsManager {
     }
 
     /**
-     * Punkte hinzufügen (niemals negativ).
+     * Punkte einer ganzen Runde verteilen + Statistik ausgeben.
      */
+    public void distributeRoundPoints(RoundStats stats, Map<UUID, Role> roles) {
+        Map<UUID, String> nameCache = new HashMap<>();
+
+        // Namen auflösen
+        for (UUID uuid : stats.getAllPlayers()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                nameCache.put(uuid, p.getName());
+            } else {
+                String lastName = Bukkit.getOfflinePlayer(uuid).getName();
+                nameCache.put(uuid, lastName != null ? lastName : uuid.toString().substring(0, 8));
+            }
+        }
+
+        // ===== Globale Statistik =====
+        String summary = stats.formatSummary(nameCache);
+        Bukkit.broadcastMessage(summary);
+
+        // ===== Persönliche Statistik + Punktevergabe =====
+        for (UUID uuid : stats.getAllPlayers()) {
+            int points = Math.max(0, stats.getPoints(uuid));
+            api.addPoints(uuid, points);
+
+            String name = nameCache.getOrDefault(uuid, "Unbekannt");
+            int newTotal = api.getPoints(uuid);
+
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                int kills = stats.getKills(uuid);
+                boolean survived = stats.hasSurvived(uuid);
+                boolean quitter = stats.isQuitter(uuid);
+
+                p.sendMessage("§e===== Deine Runde =====");
+                p.sendMessage("§7Kills: §c" + kills);
+                p.sendMessage("§7Überlebt: " + (survived ? "§aJa" : "§cNein"));
+                if (quitter) {
+                    p.sendMessage("§7Status: §eVorzeitig verlassen");
+                }
+                p.sendMessage("§7Rundenpunkte: §b" + points);
+                p.sendMessage("§7Neuer Punktestand: §a" + newTotal);
+                p.sendMessage("§e=====================");
+            }
+
+            logger.info("Rundenpunkte: +" + points + " an " + name + " (UUID=" + uuid + "), neuer Stand=" + newTotal);
+        }
+    }
+
     public void addPointsToPlayer(UUID uuid, int points) {
         int safePoints = Math.max(0, points);
         api.addPoints(uuid, safePoints);
@@ -52,9 +101,6 @@ public class PointsManager {
         plugin.debug("Punkte-Update für " + playerName + ": +" + safePoints + " → " + newPoints);
     }
 
-    /**
-     * Punkte direkt setzen (überschreibt).
-     */
     public void setPoints(UUID uuid, int points) {
         int safePoints = Math.max(0, points);
         api.setPoints(uuid, safePoints);
@@ -67,9 +113,6 @@ public class PointsManager {
         plugin.debug("Punkte gesetzt für " + playerName + " → " + newPoints);
     }
 
-    /**
-     * Strafe (Abzug) – niemals unter 0.
-     */
     public void applyPenalty(UUID uuid, int penaltyPoints, String reason) {
         int applied = Math.max(0, penaltyPoints);
         api.addPoints(uuid, -applied);
@@ -81,42 +124,6 @@ public class PointsManager {
                 " (UUID=" + uuid + "). Grund: " + reason +
                 ". Neuer Punktestand: " + newPoints);
         plugin.debug("Strafe angewendet: -" + applied + " für " + playerName + " (Grund: " + reason + ")");
-    }
-
-    /**
-     * Punkte einer ganzen Runde verteilen (RoundStats).
-     */
-    public void distributeRoundPoints(RoundStats stats, Map<UUID, Role> roles) {
-        for (UUID uuid : stats.getAllPlayers()) {
-            int points = Math.max(0, stats.getPoints(uuid));
-            api.addPoints(uuid, points);
-
-            String name = getPlayerName(uuid);
-            int newTotal = api.getPoints(uuid);
-
-            // Spieler Chat-Abrechnung
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) {
-                p.sendMessage(ChatColor.GRAY + "===== " + ChatColor.GOLD + "Deine Punkteabrechnung" + ChatColor.GRAY + " =====");
-                p.sendMessage(ChatColor.GREEN + "+" + points + " Punkte in dieser Runde");
-                p.sendMessage(ChatColor.YELLOW + "Neuer Punktestand: " + newTotal);
-                p.sendMessage(ChatColor.GRAY + "================================");
-            }
-
-            logger.info("Rundenpunkte: " + points + " an " + name + " (UUID=" + uuid + "), neuer Stand=" + newTotal);
-        }
-
-        // Broadcast für Übersicht
-        broadcastRoundStats(stats);
-    }
-
-    private void broadcastRoundStats(RoundStats stats) {
-        Bukkit.broadcastMessage(ChatColor.GRAY + "===== " + ChatColor.AQUA + "Rundenstatistik" + ChatColor.GRAY + " =====");
-        for (Map.Entry<UUID, Integer> entry : stats.getAllPoints().entrySet()) {
-            String name = getPlayerName(entry.getKey());
-            Bukkit.broadcastMessage(ChatColor.YELLOW + name + ": " + ChatColor.GREEN + entry.getValue() + " Punkte");
-        }
-        Bukkit.broadcastMessage(ChatColor.GRAY + "==============================");
     }
 
     private String getPlayerName(UUID uuid) {

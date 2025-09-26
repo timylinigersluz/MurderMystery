@@ -1,19 +1,25 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.ItemManager;
-import ch.ksrminecraft.murdermystery.utils.Role;
-import ch.ksrminecraft.murdermystery.utils.RoleManager;
+import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
+import ch.ksrminecraft.murdermystery.model.Role;
+import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
-import org.bukkit.event.player.PlayerPickupItemEvent;
+import org.bukkit.event.entity.ItemDespawnEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 
 public class BowListener implements Listener {
 
@@ -25,25 +31,24 @@ public class BowListener implements Listener {
 
     @EventHandler
     public void onBowShoot(EntityShootBowEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
         if (!(event.getEntity() instanceof Player shooter)) return;
         if (!ItemManager.isDetectiveBow(event.getBow())) return;
 
         if (!ItemManager.canShoot(shooter)) {
             shooter.sendMessage(ChatColor.GOLD + "Du musst 3 Sekunden warten, bevor du wieder schießen kannst!");
             event.setCancelled(true);
-            plugin.debug("Spieler " + shooter.getName() + " wollte schießen, aber Cooldown aktiv.");
         } else {
             shooter.playSound(shooter.getLocation(), Sound.BLOCK_BIG_DRIPLEAF_TILT_DOWN, 1.0f, 1.0f);
-            plugin.debug("Spieler " + shooter.getName() + " hat einen Pfeil mit dem Detective-Bogen geschossen.");
         }
     }
 
     @EventHandler
     public void onArrowHit(EntityDamageByEntityEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
         if (!(event.getEntity() instanceof Player victim)) return;
         if (!(event.getDamager() instanceof Arrow arrow)) return;
         if (!(arrow.getShooter() instanceof Player shooter)) return;
-
         if (!ItemManager.isDetectiveBow(shooter.getInventory().getItemInMainHand())) return;
 
         event.setDamage(0);
@@ -51,46 +56,84 @@ public class BowListener implements Listener {
 
         if (victimRole == Role.MURDERER) {
             victim.setHealth(0);
-            plugin.setMurdererKilledByBow(true);
-
-            broadcastKill("🏹 Detective", shooter.getName(), victim.getName(), ChatColor.BLUE);
-            plugin.debug("Detective " + shooter.getName() + " hat den Murderer " + victim.getName() + " getötet.");
+            Bukkit.broadcastMessage(ChatColor.BLUE + "Detective " + shooter.getName() + " hat den Mörder " + victim.getName() + " getötet!");
         } else {
             victim.setHealth(0);
             shooter.setHealth(0);
-
-            // Classic: sofort Game Over
-            // Bow-Fallback: Bogen droppt
             RoleManager.setRole(shooter.getUniqueId(), Role.BYSTANDER);
             shooter.getWorld().dropItemNaturally(shooter.getLocation(), ItemManager.createDetectiveBow());
-
-            broadcastKill("🏹 Detective", shooter.getName(), victim.getName(), ChatColor.RED);
-            plugin.debug("Detective " + shooter.getName() + " hat " + victim.getName() + " (kein Murderer) getroffen → Strafe folgt.");
-
-            int penalty = plugin.getConfig().getInt("punkte-strafe-detective", 5);
-            plugin.getPointsManager().applyPenalty(shooter.getUniqueId(), penalty, "Detective hat Innocent getötet");
-            shooter.sendMessage(ChatColor.RED + "Du hast einen Unschuldigen getötet! -" + penalty + " Punkte.");
+            Bukkit.broadcastMessage(ChatColor.RED + "Detective " + shooter.getName() + " hat " + victim.getName() + " (kein Mörder) getötet!");
         }
     }
 
     @EventHandler
-    public void onBowPickup(PlayerPickupItemEvent event) {
-        Player p = event.getPlayer();
-        if (ItemManager.isDetectiveBow(event.getItem().getItemStack())) {
-            if (RoleManager.getRole(p.getUniqueId()) == Role.BYSTANDER) {
-                RoleManager.setRole(p.getUniqueId(), Role.DETECTIVE);
-                Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() + " ist der neue Detective!");
-                p.sendTitle(ChatColor.AQUA + "🏹 Neuer Detective!", ChatColor.GREEN + "Du hast den Bogen aufgenommen.", 20, 60, 20);
-            }
+    public void onBowPickup(EntityPickupItemEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        if (!(event.getEntity() instanceof Player p)) return;
+        if (!ItemManager.isDetectiveBow(event.getItem().getItemStack())) return;
+
+        Role role = RoleManager.getRole(p.getUniqueId());
+        if (role == Role.MURDERER) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (role == Role.BYSTANDER) {
+            RoleManager.setRole(p.getUniqueId(), Role.DETECTIVE);
+            Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() + " ist der neue Detective!");
         }
     }
 
-    private void broadcastKill(String role, String killer, String victim, ChatColor color) {
-        String title = color + role + " " + killer;
-        String subtitle = ChatColor.GRAY + "hat " + ChatColor.RED + victim + ChatColor.GRAY + " getötet!";
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.sendTitle(title, subtitle, 10, 60, 10);
-            p.sendMessage(title + ChatColor.GRAY + " hat " + ChatColor.RED + victim + ChatColor.GRAY + " getötet!");
+    @EventHandler
+    public void onDespawn(ItemDespawnEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        Item item = event.getEntity();
+        if (ItemManager.isDetectiveBow(item.getItemStack())) {
+            event.setCancelled(true);
+            item.setUnlimitedLifetime(true);
+            item.setTicksLived(1);
+        }
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        if (ItemManager.isDetectiveBow(event.getItemDrop().getItemStack())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (ItemManager.isDetectiveBow(event.getCurrentItem())) {
+            event.setCancelled(true);
+            player.sendMessage("§cDer Detective-Bogen darf nicht bewegt werden!");
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getOldCursor() != null && ItemManager.isDetectiveBow(event.getOldCursor())) {
+            event.setCancelled(true);
+            player.sendMessage("§cDer Detective-Bogen darf nicht bewegt werden!");
+        }
+    }
+
+    @EventHandler
+    public void onCommand(PlayerCommandPreprocessEvent event) {
+        if (!plugin.getGameManager().isGameStarted()) return;
+        Player p = event.getPlayer();
+        String msg = event.getMessage().toLowerCase();
+
+        if (msg.startsWith("/clear") || msg.startsWith("/minecraft:clear")) {
+            if (p.getInventory().contains(ItemManager.createDetectiveBow().getType())) {
+                event.setCancelled(true);
+                p.sendMessage("§cDu darfst dein Inventar nicht leeren, solange du den Detective-Bogen besitzt!");
+            }
         }
     }
 }

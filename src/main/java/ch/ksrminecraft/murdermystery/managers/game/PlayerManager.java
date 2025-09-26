@@ -1,8 +1,13 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
+import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
+import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.managers.support.MapManager;
+import ch.ksrminecraft.murdermystery.model.Role;
 import org.bukkit.*;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -15,17 +20,18 @@ public class PlayerManager {
     private final GameManager gameManager;
     private final MurderMystery plugin;
     private final MapManager mapManager;
+    private final ConfigManager configManager;
 
-    public PlayerManager(GameManager gameManager, MurderMystery plugin) {
+    public PlayerManager(GameManager gameManager, MurderMystery plugin, ArenaManager arenaManager, ConfigManager configManager) {
         this.gameManager = gameManager;
         this.plugin = plugin;
-        this.mapManager = new MapManager(plugin);
+        this.mapManager = new MapManager(plugin, arenaManager);
+        this.configManager = configManager;
     }
 
     public void handleJoin(Player p) {
         UUID uuid = p.getUniqueId();
 
-        // Spiel läuft schon → Join blockieren, Spieler bleibt in Lobby
         if (gameManager.isGameStarted()) {
             sendToLobby(p);
             p.sendMessage(ChatColor.YELLOW + "Es läuft gerade eine MurderMystery-Runde.");
@@ -35,7 +41,6 @@ public class PlayerManager {
             return;
         }
 
-        // Spieler zur Lobby hinzufügen
         if (gameManager.getPlayers().add(uuid)) {
             resetPlayer(p);
             sendToLobby(p);
@@ -57,12 +62,6 @@ public class PlayerManager {
 
     public void handleLeave(Player p) {
         UUID uuid = p.getUniqueId();
-
-        if (!gameManager.getPlayers().contains(uuid)) {
-            p.sendMessage(ChatColor.GRAY + "Du bist in keinem Spiel.");
-            plugin.debug("Leave abgelehnt: Spieler " + p.getName() + " war nicht im Spiel.");
-            return;
-        }
 
         gameManager.getPlayers().remove(uuid);
         gameManager.getSpectators().remove(uuid);
@@ -93,7 +92,7 @@ public class PlayerManager {
         plugin.debug("Spielstart mit " + players.size() + " Spielern.");
         roles.putAll(RoleManager.assignRoles(players));
 
-        mapManager.teleportToRandomMap(players);
+        mapManager.teleportToRandomArena(players);
         plugin.debug("Alle Spieler wurden in eine zufällige Map teleportiert.");
 
         for (Map.Entry<UUID, Role> entry : roles.entrySet()) {
@@ -109,39 +108,45 @@ public class PlayerManager {
                     p.getInventory().addItem(new ItemStack(Material.ARROW, 1));
                 }
                 case MURDERER -> p.getInventory().addItem(ItemManager.createMurdererSword());
-                case BYSTANDER -> {
-                    // keine Items
-                }
+                case BYSTANDER -> { /* keine Items */ }
             }
         }
     }
 
     public void resetGame(Set<UUID> players) {
-        // Alle Spieler zurück in die Lobby teleportieren
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                sendToLobby(p);   // <-- Änderung: statt MainWorld geht's in die Lobby
-                resetPlayer(p);   // Spieler-Status zurücksetzen (Inventar, Gamemode etc.)
+                resetPlayer(p);
+                sendToLobby(p);
+                plugin.debug("Reset für Spieler " + p.getName() + " ausgeführt.");
             }
         }
-
-        players.clear();
-        plugin.debug("Spiel zurückgesetzt: Alle Spieler in die Lobby teleportiert.");
     }
 
     // ================= Hilfsmethoden =================
 
     private void resetPlayer(Player p) {
-        p.setGameMode(GameMode.ADVENTURE);
+        p.setGameMode(GameMode.SURVIVAL);
+        p.setHealth(p.getMaxHealth());
+        p.setFoodLevel(20);
+        p.setSaturation(20);
+        p.setFireTicks(0);
+
         p.getInventory().clear();
         p.getInventory().setArmorContents(null);
         p.getInventory().setItemInOffHand(null);
+
+        for (ItemStack item : p.getInventory().getContents()) {
+            if (ItemManager.isDetectiveBow(item) || ItemManager.isMurdererSword(item)) {
+                p.getInventory().remove(item);
+                plugin.debug("Cleanup: Entfernt Spezialitem bei Spieler " + p.getName());
+            }
+        }
     }
 
     private void sendToLobby(Player p) {
-        FileConfiguration cfg = plugin.getConfig();
-        String lobbyWorldName = cfg.getString("worlds.lobby");
+        String lobbyWorldName = configManager.getLobbyWorld();
         World lobby = Bukkit.getWorld(lobbyWorldName);
         if (lobby != null) {
             p.teleport(lobby.getSpawnLocation());
@@ -149,8 +154,7 @@ public class PlayerManager {
     }
 
     private void sendToMainWorld(Player p) {
-        FileConfiguration cfg = plugin.getConfig();
-        String mainWorldName = cfg.getString("worlds.main");
+        String mainWorldName = configManager.getMainWorld();
         World main = Bukkit.getWorld(mainWorldName);
         if (main != null) {
             p.teleport(main.getSpawnLocation());
@@ -160,9 +164,9 @@ public class PlayerManager {
     private void sendRoleMessage(Player player, Role role) {
         player.sendMessage(ChatColor.GRAY + "=========================");
         switch (role) {
-            case MURDERER -> player.sendMessage(ChatColor.GOLD + "Du bist der " + ChatColor.DARK_RED + "Murderer");
-            case DETECTIVE -> player.sendMessage(ChatColor.GOLD + "Du bist der " + ChatColor.BLUE + "Detective");
-            default -> player.sendMessage(ChatColor.GOLD + "Du bist ein " + ChatColor.GREEN + "Innocent");
+            case MURDERER -> player.sendMessage(ChatColor.GOLD + "Du bist der " + ChatColor.DARK_RED + "Mörder");
+            case DETECTIVE -> player.sendMessage(ChatColor.GOLD + "Du bist der " + ChatColor.BLUE + "Detektiv");
+            default -> player.sendMessage(ChatColor.GOLD + "Du bist ein " + ChatColor.GREEN + "Unschuldiger");
         }
         player.sendMessage(ChatColor.GRAY + "=========================");
     }

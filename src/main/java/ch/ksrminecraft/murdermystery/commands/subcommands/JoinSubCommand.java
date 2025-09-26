@@ -1,7 +1,7 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -9,10 +9,12 @@ import org.bukkit.entity.Player;
 public class JoinSubCommand implements SubCommand {
 
     private final GameManager gameManager;
+    private final MurderMystery plugin;
     private static final String PERMISSION = "murdermystery.join";
 
     public JoinSubCommand(GameManager gameManager) {
         this.gameManager = gameManager;
+        this.plugin = MurderMystery.getInstance();
     }
 
     @Override
@@ -42,7 +44,7 @@ public class JoinSubCommand implements SubCommand {
             return;
         }
 
-        MurderMystery.getInstance().debug("Spieler " + player.getName() + " nutzt /mm join");
+        plugin.debug("Spieler " + player.getName() + " nutzt /mm join");
         gameManager.handleJoin(player);
     }
 }

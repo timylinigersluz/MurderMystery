@@ -1,4 +1,4 @@
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.model;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import org.bukkit.entity.Player;

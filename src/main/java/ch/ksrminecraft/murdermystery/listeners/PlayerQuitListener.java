@@ -1,11 +1,11 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.utils.GameManager;
-import ch.ksrminecraft.murdermystery.utils.QuitTracker;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.model.QuitTracker;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,12 +15,12 @@ public class PlayerQuitListener implements Listener {
 
     private final MurderMystery plugin;
     private final GameManager gameManager;
-    private final FileConfiguration config;
+    private final ConfigManager configManager;
 
-    public PlayerQuitListener(GameManager gameManager) {
+    public PlayerQuitListener(GameManager gameManager, ConfigManager configManager) {
         this.plugin = MurderMystery.getInstance();
         this.gameManager = gameManager;
-        this.config = plugin.getConfig();
+        this.configManager = configManager;
     }
 
     @EventHandler
@@ -28,39 +28,34 @@ public class PlayerQuitListener implements Listener {
         Player quitter = e.getPlayer();
         plugin.debug("Spieler " + quitter.getName() + " hat den Server verlassen.");
 
-        // Wenn kein Spiel läuft → nichts tun
         if (!gameManager.isGameStarted()) {
             plugin.debug("Spiel läuft nicht. Quit von " + quitter.getName() + " wird ignoriert.");
             return;
         }
 
-        // War Spieler Teil des Spiels?
         if (gameManager.isPlayerInGame(quitter)) {
             plugin.debug("Spieler " + quitter.getName() + " war im Spiel → wird eliminiert.");
             gameManager.eliminate(quitter);
 
             // Strafe für Ragequit
-            int penalty = config.getInt("punkte-strafe", 5);
-            plugin.getPointsManager().applyPenalty(quitter.getUniqueId(), penalty, "Ragequit");
+            plugin.getPointsManager().applyPenalty(
+                    quitter.getUniqueId(),
+                    configManager.getPointsQuit(),
+                    "Ragequit"
+            );
 
-            // QuitTracker → merken, falls Spieler nicht in Hauptwelt war
-            String mainWorldName = config.getString("worlds.main");
+            // QuitTracker setzen, wenn nicht in MainWorld
+            String mainWorldName = configManager.getMainWorld();
             World mainWorld = Bukkit.getWorld(mainWorldName);
-
             if (mainWorld == null) {
-                plugin.getLogger().severe("Fehler: Hauptwelt '" + mainWorldName + "' konnte nicht geladen werden!");
+                plugin.getLogger().severe("Fehler: Hauptwelt '" + mainWorldName + "' nicht gefunden!");
                 return;
             }
 
-            World currentWorld = quitter.getWorld();
-            if (!currentWorld.getName().equalsIgnoreCase(mainWorld.getName())) {
+            if (!quitter.getWorld().getName().equalsIgnoreCase(mainWorld.getName())) {
                 QuitTracker.mark(quitter);
-                plugin.debug("Spieler " + quitter.getName() + " wurde im QuitTracker markiert (war in Welt '" + currentWorld.getName() + "').");
-            } else {
-                plugin.debug("Spieler " + quitter.getName() + " war bereits in der Hauptwelt, kein QuitTracker-Eintrag notwendig.");
+                plugin.debug("Spieler " + quitter.getName() + " wurde im QuitTracker markiert.");
             }
-        } else {
-            plugin.debug("Spieler " + quitter.getName() + " war nicht im Spiel. Keine Eliminierung nötig.");
         }
     }
 }

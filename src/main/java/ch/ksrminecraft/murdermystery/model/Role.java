@@ -1,5 +1,5 @@
 // Utils/Role.java
-package ch.ksrminecraft.murdermystery.utils;
+package ch.ksrminecraft.murdermystery.model;
 
 public enum Role {
     MURDERER,
