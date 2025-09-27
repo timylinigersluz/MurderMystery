@@ -24,12 +24,12 @@ public class JoinSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Tritt einer MurderMystery-Runde bei";
+        return "Tritt einer MurderMystery-Runde bei (optional mit Größenauswahl)";
     }
 
     @Override
     public String getUsage() {
-        return "/mm join";
+        return "/mm join [small|mid|large]";
     }
 
     @Override
@@ -44,7 +44,24 @@ public class JoinSubCommand implements SubCommand {
             return;
         }
 
-        plugin.debug("Spieler " + player.getName() + " nutzt /mm join");
-        gameManager.handleJoin(player);
+        String size = null;
+        if (args.length > 1) {
+            String arg = args[1].toLowerCase();
+            if (arg.equals("small") || arg.equals("mid") || arg.equals("large")) {
+                size = arg;
+            } else {
+                player.sendMessage(ChatColor.RED + "Ungültige Größe. Nutze: small, mid oder large.");
+                return;
+            }
+        }
+
+        plugin.debug("Spieler " + player.getName() + " nutzt /mm join"
+                + (size != null ? " mit size=" + size : ""));
+
+        if (size != null) {
+            gameManager.handleJoin(player, size); // Variante mit Arena-Size
+        } else {
+            gameManager.handleJoin(player);      // Standard-Join
+        }
     }
 }

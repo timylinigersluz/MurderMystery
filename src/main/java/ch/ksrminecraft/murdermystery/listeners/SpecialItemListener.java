@@ -4,6 +4,8 @@ import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
+import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -16,6 +18,8 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.ItemStack;
+
+import java.util.UUID;
 
 public class SpecialItemListener implements Listener {
 
@@ -35,10 +39,12 @@ public class SpecialItemListener implements Listener {
         if (ItemManager.isDetectiveBow(drop)) {
             if (plugin.getArenaManager().getArenaForWorld(player.getWorld()) == null) {
                 event.getItemDrop().remove();
-                plugin.debug("Detective-Bogen außerhalb von Arenen entfernt (Welt=" + player.getWorld().getName() + ")");
+                plugin.debug("Detective-Bogen ausserhalb von Arenen entfernt (Welt=" + player.getWorld().getName() + ")");
                 return;
             }
             event.setCancelled(true);
+            MessageLimiter.sendPlayerMessage(player, "bow-drop",
+                    "§cDu darfst den Detective-Bogen nicht fallen lassen!");
             return;
         }
 
@@ -50,7 +56,8 @@ public class SpecialItemListener implements Listener {
                 return;
             }
             event.setCancelled(true);
-            player.sendMessage("§cDu darfst das Murderer-Schwert nicht fallen lassen!");
+            MessageLimiter.sendPlayerMessage(player, "sword-drop",
+                    "§cDu darfst das Murderer-Schwert nicht fallen lassen!");
             return;
         }
 
@@ -59,7 +66,8 @@ public class SpecialItemListener implements Listener {
             Role role = RoleManager.getRole(player.getUniqueId());
             if (role == Role.DETECTIVE) {
                 event.setCancelled(true);
-                player.sendMessage("§cAls Detective darfst du deine Pfeile nicht droppen!");
+                MessageLimiter.sendPlayerMessage(player, "arrow-drop",
+                        "§cAls Detective darfst du deine Pfeile nicht droppen!");
             }
         }
     }
@@ -70,13 +78,25 @@ public class SpecialItemListener implements Listener {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack stack = event.getItem().getItemStack();
 
-        // Murderer-Schwert nur für Mörder
+        UUID uuid = player.getUniqueId();
+        Role currentRole = RoleManager.getRole(uuid);
+
+        // 🔪 Murderer-Schwert nur für Mörder
         if (ItemManager.isMurdererSword(stack)) {
-            Role role = RoleManager.getRole(player.getUniqueId());
-            if (role != Role.MURDERER) {
+            if (currentRole != Role.MURDERER) {
                 event.setCancelled(true);
                 player.sendMessage("§cNur der Mörder darf das Schwert aufnehmen!");
                 plugin.debug("Pickup von Murderer-Schwert durch " + player.getName() + " blockiert.");
+            }
+            return;
+        }
+
+        // 🏹 Detective-Bogen → Rolle wechseln
+        if (ItemManager.isDetectiveBow(stack)) {
+            if (currentRole == Role.BYSTANDER) {
+                RoleManager.setRole(uuid, Role.DETECTIVE);
+                player.sendMessage(ChatColor.BLUE + "🔎 Du bist jetzt Detective!");
+                plugin.debug("Spieler " + player.getName() + " hat den Detective-Bogen aufgenommen und ist jetzt Detective.");
             }
         }
     }
@@ -102,7 +122,8 @@ public class SpecialItemListener implements Listener {
         ItemStack current = event.getCurrentItem();
         if (ItemManager.isDetectiveBow(current) || ItemManager.isMurdererSword(current)) {
             event.setCancelled(true);
-            player.sendMessage("§cDieses Spezialitem darf nicht bewegt werden!");
+            MessageLimiter.sendPlayerMessage(player, "item-move",
+                    "§cDieses Spezialitem darf nicht bewegt werden!");
         }
     }
 
@@ -112,7 +133,8 @@ public class SpecialItemListener implements Listener {
         ItemStack dragged = event.getOldCursor();
         if (ItemManager.isDetectiveBow(dragged) || ItemManager.isMurdererSword(dragged)) {
             event.setCancelled(true);
-            player.sendMessage("§cDieses Spezialitem darf nicht bewegt werden!");
+            MessageLimiter.sendPlayerMessage(player, "item-drag",
+                    "§cDieses Spezialitem darf nicht bewegt werden!");
         }
     }
 
@@ -126,7 +148,8 @@ public class SpecialItemListener implements Listener {
             if (p.getInventory().contains(ItemManager.createDetectiveBow().getType()) ||
                     p.getInventory().contains(ItemManager.createMurdererSword().getType())) {
                 event.setCancelled(true);
-                p.sendMessage("§cDu darfst dein Inventar nicht leeren, solange du Spezialitems besitzt!");
+                MessageLimiter.sendPlayerMessage(p, "clear-block",
+                        "§cDu darfst dein Inventar nicht leeren, solange du Spezialitems besitzt!");
                 plugin.debug("Befehl /clear von " + p.getName() + " blockiert (Spezialitem im Inventar).");
             }
         }

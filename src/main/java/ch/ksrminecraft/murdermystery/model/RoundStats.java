@@ -5,14 +5,18 @@ import java.util.*;
 public class RoundStats {
 
     private final Map<UUID, Integer> kills = new HashMap<>();
+    private final Map<UUID, List<UUID>> killDetails = new HashMap<>();
     private final Set<UUID> survived = new HashSet<>();
     private final Set<UUID> quitters = new HashSet<>();
     private final Map<UUID, Integer> roundPoints = new HashMap<>();
-    private final Set<UUID> detectiveKilledInnocent = new HashSet<>();
 
-    // --- Kills ---
-    public void addKill(UUID player) {
-        kills.put(player, kills.getOrDefault(player, 0) + 1);
+    // Anzahl Fehlabschüsse pro Detective
+    private final Map<UUID, Integer> detectiveInnocentKills = new HashMap<>();
+
+    // --- Kills + Opferliste ---
+    public void addKill(UUID killerId, UUID victimId) {
+        kills.put(killerId, kills.getOrDefault(killerId, 0) + 1);
+        killDetails.computeIfAbsent(killerId, k -> new ArrayList<>()).add(victimId);
     }
 
     public int getKills(UUID player) {
@@ -21,6 +25,18 @@ public class RoundStats {
 
     public Map<UUID, Integer> getKillsMap() {
         return new HashMap<>(kills);
+    }
+
+    public List<UUID> getKillVictims(UUID killer) {
+        return new ArrayList<>(killDetails.getOrDefault(killer, Collections.emptyList()));
+    }
+
+    public Map<UUID, List<UUID>> getKillDetailsMap() {
+        Map<UUID, List<UUID>> copy = new HashMap<>();
+        for (Map.Entry<UUID, List<UUID>> e : killDetails.entrySet()) {
+            copy.put(e.getKey(), new ArrayList<>(e.getValue()));
+        }
+        return copy;
     }
 
     // --- Überleben ---
@@ -68,22 +84,24 @@ public class RoundStats {
     }
 
     // --- Detective-Kills (Fehlabschüsse) ---
-    public void markDetectiveKilledInnocent(UUID detective) {
-        detectiveKilledInnocent.add(detective);
+    public void addDetectiveInnocentKill(UUID detective) {
+        detectiveInnocentKills.put(detective,
+                detectiveInnocentKills.getOrDefault(detective, 0) + 1);
     }
 
-    public boolean didDetectiveKillInnocent(UUID detective) {
-        return detectiveKilledInnocent.contains(detective);
+    public int getDetectiveInnocentKills(UUID detective) {
+        return detectiveInnocentKills.getOrDefault(detective, 0);
     }
 
     // --- Alle Spieler dieser Runde ---
     public Set<UUID> getAllPlayers() {
         Set<UUID> all = new HashSet<>();
         all.addAll(kills.keySet());
+        all.addAll(killDetails.keySet());
         all.addAll(survived);
         all.addAll(quitters);
         all.addAll(roundPoints.keySet());
-        all.addAll(detectiveKilledInnocent);
+        all.addAll(detectiveInnocentKills.keySet());
         return all;
     }
 
@@ -92,15 +110,16 @@ public class RoundStats {
     public String toString() {
         return "RoundStats{" +
                 "kills=" + kills +
+                ", killDetails=" + killDetails +
                 ", survived=" + survived +
                 ", quitters=" + quitters +
                 ", roundPoints=" + roundPoints +
-                ", detectiveKilledInnocent=" + detectiveKilledInnocent +
+                ", detectiveInnocentKills=" + detectiveInnocentKills +
                 '}';
     }
 
     // --- Formatierte Übersicht ---
-    public String formatSummary(Map<UUID, String> nameCache) {
+    public String formatSummary(Map<UUID, String> nameCache, Map<UUID, Role> roles) {
         StringBuilder sb = new StringBuilder();
         sb.append("§6===== §eRundenstatistik §6=====\n");
 
@@ -111,10 +130,32 @@ public class RoundStats {
 
             sb.append("§7• ").append(name);
 
-            if (killsCount > 0) sb.append(" §8| §cKills: ").append(killsCount);
+            if (killsCount > 0) {
+                sb.append(" §8| §cKills: ").append(killsCount);
+
+                List<UUID> victims = getKillVictims(uuid);
+                if (!victims.isEmpty()) {
+                    sb.append(" §8(");
+                    for (UUID v : victims) {
+                        String vName = nameCache.getOrDefault(v, v.toString().substring(0, 8));
+                        sb.append(vName).append(", ");
+                    }
+                    sb.setLength(sb.length() - 2); // letztes Komma entfernen
+                    sb.append(")");
+                }
+            }
+
             if (hasSurvived(uuid)) sb.append(" §8| §aÜberlebt");
             if (isQuitter(uuid)) sb.append(" §8| §eQuit");
-            if (didDetectiveKillInnocent(uuid)) sb.append(" §8| §cFehlabschuss");
+
+            Role role = roles.get(uuid);
+            if (role == Role.DETECTIVE) {
+                int fails = getDetectiveInnocentKills(uuid);
+                if (fails > 0) {
+                    sb.append(" §8| §cFehlabschüsse: ").append(fails);
+                }
+            }
+
             if (points != 0) sb.append(" §8| §bPunkte: ").append(points);
 
             sb.append("\n");

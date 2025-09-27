@@ -27,6 +27,7 @@ public class ConfigManager {
 
     // --- Spielmodus ---
     private String gameMode;
+    private String playerGameMode;
 
     // --- Punkte ---
     private int pointsKillMurderer;
@@ -36,14 +37,9 @@ public class ConfigManager {
     private int pointsWin;
     private int pointsCoWin;
     private int pointsLose;
+    private int pointsConsolation;
     private int pointsQuit;
-
-    // --- RankPointsAPI ---
-    private String rankApiUrl;
-    private String rankApiUser;
-    private String rankApiPassword;
-    private boolean rankDebug;
-    private boolean excludeStaff;
+    private int pointsTimeUp;
 
     // --- Protection ---
     private boolean allowAdminMove;
@@ -53,15 +49,10 @@ public class ConfigManager {
 
     public ConfigManager(MurderMystery plugin) {
         this.plugin = plugin;
-
-        // Erstellt config.yml, falls sie noch nicht existiert
         plugin.saveDefaultConfig();
         reload();
     }
 
-    /**
-     * Lädt config.yml neu und cached die wichtigsten Werte.
-     */
     public void reload() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();
@@ -70,7 +61,9 @@ public class ConfigManager {
         this.mainWorld = config.getString("worlds.main", "world");
         this.lobbyWorld = config.getString("worlds.lobby", "lobby");
 
-        // Arenen
+        this.playerGameMode = config.getString("player-gamemode", "survival").toLowerCase();
+
+        // Arenen laden
         arenas.clear();
         ConfigurationSection arenaSection = config.getConfigurationSection("arenas");
         if (arenaSection != null) {
@@ -79,8 +72,9 @@ public class ConfigManager {
                 if (sec != null) {
                     String world = sec.getString("world", "world");
                     int maxPlayers = sec.getInt("maxPlayers", 12);
-
+                    String size = sec.getString("size", "unspecified").toLowerCase();
                     List<String> spawns = sec.getStringList("spawns");
+
                     Map<String, Integer> region = new HashMap<>();
                     if (sec.isConfigurationSection("region")) {
                         ConfigurationSection regSec = sec.getConfigurationSection("region");
@@ -89,7 +83,7 @@ public class ConfigManager {
                         }
                     }
 
-                    arenas.put(key, new ArenaConfig(key, world, maxPlayers, spawns, region));
+                    arenas.put(key, new ArenaConfig(key, world, maxPlayers, size, spawns, region));
                 }
             }
         }
@@ -110,14 +104,9 @@ public class ConfigManager {
         this.pointsWin = config.getInt("points.win", 5);
         this.pointsCoWin = config.getInt("points.co-win", 2);
         this.pointsLose = config.getInt("points.lose", 2);
+        this.pointsConsolation = config.getInt("points.consolation", 2);
         this.pointsQuit = config.getInt("points.quit", -3);
-
-        // RankPointsAPI
-        this.rankApiUrl = config.getString("Rank-Points-API-url");
-        this.rankApiUser = config.getString("Rank-Points-API-user");
-        this.rankApiPassword = config.getString("Rank-Points-API-password");
-        this.rankDebug = config.getBoolean("rankpoints.debug", false);
-        this.excludeStaff = config.getBoolean("rankpoints.exclude-staff", false);
+        this.pointsTimeUp = config.getInt("points.time-up", 3);
 
         // Protection
         this.allowAdminMove = config.getBoolean("protection.allow-admin-move", true);
@@ -126,9 +115,6 @@ public class ConfigManager {
         this.debug = config.getBoolean("debug", false);
     }
 
-    /**
-     * Speichert das aktuelle Config-Objekt in die Datei.
-     */
     public void save() {
         try {
             config.save(new File(plugin.getDataFolder(), "config.yml"));
@@ -138,10 +124,6 @@ public class ConfigManager {
     }
 
     // --- Getter ---
-    public List<String> getArenaSpawns(String arenaName) {
-        return config.getStringList("arenas." + arenaName + ".spawns");
-    }
-
     public String getMainWorld() { return mainWorld; }
     public String getLobbyWorld() { return lobbyWorld; }
     public Map<String, ArenaConfig> getArenas() { return arenas; }
@@ -159,61 +141,34 @@ public class ConfigManager {
     public int getPointsWin() { return pointsWin; }
     public int getPointsCoWin() { return pointsCoWin; }
     public int getPointsLose() { return pointsLose; }
+    public int getPointsConsolation() { return pointsConsolation; }
     public int getPointsQuit() { return pointsQuit; }
-
-    public String getRankApiUrl() { return rankApiUrl; }
-    public String getRankApiUser() { return rankApiUser; }
-    public String getRankApiPassword() { return rankApiPassword; }
-    public boolean isRankDebug() { return rankDebug; }
-    public boolean isExcludeStaff() { return excludeStaff; }
+    public int getPointsTimeUp() { return pointsTimeUp; }
 
     public boolean isDebug() { return debug; }
     public boolean isAllowAdminMove() { return allowAdminMove; }
 
-    // --- Setter + sofort speichern ---
+    public void debug(String msg) {
+        if (debug) plugin.getLogger().info("[DEBUG] " + msg);
+    }
+
+    // --- Arenen-Spawns ---
+    public List<String> getArenaSpawns(String arenaName) {
+        return config.getStringList("arenas." + arenaName + ".spawns");
+    }
+
     public void setArenaSpawns(String arenaName, List<String> spawns) {
         config.set("arenas." + arenaName + ".spawns", spawns);
         save();
         reload();
     }
 
-    public void setGamemode(String mode) {
-        config.set("gamemode", mode);
-        save();
-        this.gameMode = mode.toLowerCase();
-    }
-
-    public void setMinPlayers(int minPlayers) {
-        config.set("min-players", minPlayers);
-        save();
-        this.minPlayers = minPlayers;
-    }
-
-    public void setCountdownSeconds(int countdownSeconds) {
-        config.set("countdown-seconds", countdownSeconds);
-        save();
-        this.countdownSeconds = countdownSeconds;
-    }
-
-    public void setMaxGameSeconds(int maxGameSeconds) {
-        config.set("max-game-seconds", maxGameSeconds);
-        save();
-        this.maxGameSeconds = maxGameSeconds;
-    }
-
-    public void setAllowAdminMove(boolean allow) {
-        config.set("protection.allow-admin-move", allow);
-        save();
-        this.allowAdminMove = allow;
-    }
-
-    /**
-     * Debug-Ausgabe nur, wenn Debug-Modus aktiv.
-     */
-    public void debug(String msg) {
-        if (debug) {
-            plugin.getLogger().info("[DEBUG] " + msg);
-        }
+    public org.bukkit.GameMode getPlayerGameMode() {
+        return switch (playerGameMode) {
+            case "adventure" -> org.bukkit.GameMode.ADVENTURE;
+            case "creative" -> org.bukkit.GameMode.CREATIVE; // optional für Tests
+            default -> org.bukkit.GameMode.SURVIVAL;
+        };
     }
 
     // --- ArenaConfig Hilfsklasse ---
@@ -221,13 +176,16 @@ public class ConfigManager {
         private final String name;
         private final String world;
         private final int maxPlayers;
+        private final String size;
         private final List<String> spawns;
         private final Map<String, Integer> region;
 
-        public ArenaConfig(String name, String world, int maxPlayers, List<String> spawns, Map<String, Integer> region) {
+        public ArenaConfig(String name, String world, int maxPlayers, String size,
+                           List<String> spawns, Map<String, Integer> region) {
             this.name = name;
             this.world = world;
             this.maxPlayers = maxPlayers;
+            this.size = size;
             this.spawns = spawns;
             this.region = region;
         }
@@ -235,7 +193,15 @@ public class ConfigManager {
         public String getName() { return name; }
         public String getWorld() { return world; }
         public int getMaxPlayers() { return maxPlayers; }
+        public String getSize() { return size; }
         public List<String> getSpawns() { return spawns; }
         public Map<String, Integer> getRegion() { return region; }
+    }
+
+    // --- Setter ---
+    public void setGameMode(String mode) {
+        config.set("gamemode", mode);
+        save();
+        this.gameMode = mode.toLowerCase();
     }
 }

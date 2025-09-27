@@ -13,15 +13,25 @@ public class Arena {
     private final String name;
     private final int maxPlayers;
     private final List<Location> spawnPoints;
+    private final World world;
 
     // Optionaler Region-Fallback
-    private final World world;
     private final Integer minX, maxX, minZ, maxZ;
+
+    // NEU: Arena-Größe (small/mid/large)
+    private final String size;
 
     private final Random random = new Random();
 
-    public Arena(String name, int maxPlayers, List<Location> spawnPoints,
-                 World world, Integer minX, Integer maxX, Integer minZ, Integer maxZ) {
+    public Arena(String name,
+                 int maxPlayers,
+                 List<Location> spawnPoints,
+                 World world,
+                 Integer minX,
+                 Integer maxX,
+                 Integer minZ,
+                 Integer maxZ,
+                 String size) {
         this.name = name;
         this.maxPlayers = maxPlayers;
         this.spawnPoints = spawnPoints;
@@ -30,6 +40,7 @@ public class Arena {
         this.maxX = maxX;
         this.minZ = minZ;
         this.maxZ = maxZ;
+        this.size = size != null ? size.toLowerCase() : "unspecified";
     }
 
     public String getName() {
@@ -46,6 +57,10 @@ public class Arena {
 
     public World getWorld() {
         return world;
+    }
+
+    public String getSize() {
+        return size;
     }
 
     /**

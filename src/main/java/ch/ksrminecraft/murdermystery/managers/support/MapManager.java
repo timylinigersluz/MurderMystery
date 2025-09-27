@@ -20,9 +20,9 @@ public class MapManager {
         this.arenaManager = arenaManager;
     }
 
-    /**
-     * Teleportiert alle Spieler in eine zufällige Arena (aus config.yml -> arenas).
-     */
+    // ================== Öffentliche Methoden ==================
+
+    /** Spieler in eine zufällige Arena teleportieren */
     public void teleportToRandomArena(Set<UUID> playerUUIDs) {
         Arena arena = arenaManager.getRandomArena();
         if (arena == null) {
@@ -33,69 +33,69 @@ public class MapManager {
         for (UUID uuid : playerUUIDs) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                Location spawn = arena.getRandomSpawn(); // 👈 direkt Arena-Logik nutzen
-                p.teleport(spawn);
-                plugin.debug("Spieler " + p.getName() + " wurde in Arena '" + arena.getName() + "' teleportiert → " +
-                        String.format("(%.1f, %.1f, %.1f)", spawn.getX(), spawn.getY(), spawn.getZ()));
+                Location spawn = arena.getRandomSpawn();
+                teleportPlayer(p, spawn, "Arena '" + arena.getName() + "'");
             }
         }
     }
 
-    /**
-     * Teleportiert alle Spieler zurück in die Hauptwelt (config.yml -> worlds.main).
-     */
+    /** Spieler in die Hauptwelt teleportieren */
     public void teleportToMainWorld(Set<UUID> players) {
-        String mainName = plugin.getConfig().getString("worlds.main");
+        teleportAll(players, "worlds.main", "Hauptwelt");
+    }
 
-        if (mainName == null || mainName.isBlank()) {
-            plugin.getLogger().severe("Fehler: 'worlds.main' ist in der Config nicht gesetzt!");
+    /** Spieler in die Lobby teleportieren */
+    public void teleportToLobby(Set<UUID> players) {
+        teleportAll(players, "worlds.lobby", "Lobby");
+    }
+
+    // === Bequeme Methoden für EINEN Spieler ===
+
+    public void teleportToMainWorld(Player p) {
+        if (p != null && p.isOnline()) {
+            teleportToMainWorld(Set.of(p.getUniqueId()));
+        }
+    }
+
+    public void teleportToLobby(Player p) {
+        if (p != null && p.isOnline()) {
+            teleportToLobby(Set.of(p.getUniqueId()));
+        }
+    }
+
+    // ================== Hilfsmethoden ==================
+
+    /** Teleportiert alle Spieler zu einer bestimmten Welt aus der Config */
+    private void teleportAll(Set<UUID> players, String configPath, String debugName) {
+        String worldName = plugin.getConfig().getString(configPath);
+
+        if (worldName == null || worldName.isBlank()) {
+            plugin.getLogger().severe("Fehler: '" + configPath + "' ist in der Config nicht gesetzt!");
             return;
         }
 
-        World main = Bukkit.getWorld(mainName);
-        if (main == null) {
-            plugin.getLogger().severe("Hauptwelt '" + mainName + "' konnte nicht geladen werden!");
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            plugin.getLogger().severe(debugName + " '" + worldName + "' konnte nicht geladen werden!");
             return;
         }
 
-        Location spawn = main.getSpawnLocation();
-        plugin.debug("Teleportiere alle Spieler zurück in die Hauptwelt '" + mainName + "'.");
+        Location spawn = world.getSpawnLocation();
+        plugin.debug("Teleportiere Spieler → " + debugName + " (" + worldName + ").");
 
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                p.teleport(spawn);
-                plugin.debug("Spieler " + p.getName() + " wurde nach '" + mainName + "' teleportiert.");
+                teleportPlayer(p, spawn, debugName);
             }
         }
     }
 
-    /**
-     * Teleportiert alle Spieler zurück in die Lobby (config.yml -> worlds.lobby).
-     */
-    public void teleportToLobby(Set<UUID> players) {
-        String lobbyName = plugin.getConfig().getString("worlds.lobby");
-
-        if (lobbyName == null || lobbyName.isBlank()) {
-            plugin.getLogger().severe("Fehler: 'worlds.lobby' ist in der Config nicht gesetzt!");
-            return;
-        }
-
-        World lobby = Bukkit.getWorld(lobbyName);
-        if (lobby == null) {
-            plugin.getLogger().severe("Lobby-Welt '" + lobbyName + "' konnte nicht geladen werden!");
-            return;
-        }
-
-        Location spawn = lobby.getSpawnLocation();
-        plugin.debug("Teleportiere alle Spieler zurück in die Lobby '" + lobbyName + "'.");
-
-        for (UUID uuid : players) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) {
-                p.teleport(spawn);
-                plugin.debug("Spieler " + p.getName() + " wurde nach '" + lobbyName + "' teleportiert.");
-            }
-        }
+    /** Einzelnen Spieler sicher teleportieren (wiederverwendbar) */
+    private void teleportPlayer(Player p, Location location, String context) {
+        p.teleport(location);
+        plugin.debug("Spieler " + p.getName() + " wurde nach " + context +
+                " teleportiert → " +
+                String.format("(%.1f, %.1f, %.1f)", location.getX(), location.getY(), location.getZ()));
     }
 }

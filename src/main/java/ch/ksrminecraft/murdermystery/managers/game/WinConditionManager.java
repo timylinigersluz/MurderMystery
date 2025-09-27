@@ -39,6 +39,8 @@ public class WinConditionManager {
         if (!murdererAlive) {
             Broadcaster.broadcastMessage(gameManager.getPlayers(),
                     ChatColor.AQUA + "✅ Die Bystander haben gewonnen!");
+
+            // ✅ Rundenende inkl. Kills/Stats
             gameManager.endRound(RoundResultManager.EndCondition.DETECTIVE_WIN);
             return;
         }
@@ -50,6 +52,8 @@ public class WinConditionManager {
         if (onlyMurdererLeft) {
             Broadcaster.broadcastMessage(gameManager.getPlayers(),
                     ChatColor.DARK_RED + "🔪 Der Murderer hat gewonnen!");
+
+            // ✅ Rundenende inkl. Kills/Stats
             gameManager.endRound(RoundResultManager.EndCondition.MURDERER_WIN);
         }
     }
@@ -62,6 +66,7 @@ public class WinConditionManager {
         Broadcaster.broadcastMessage(gameManager.getPlayers(),
                 ChatColor.YELLOW + "⏰ Zeitlimit erreicht! Niemand hat gewonnen.");
 
+        // ✅ Rundenende inkl. Stats
         gameManager.endRound(RoundResultManager.EndCondition.TIME_UP);
     }
 

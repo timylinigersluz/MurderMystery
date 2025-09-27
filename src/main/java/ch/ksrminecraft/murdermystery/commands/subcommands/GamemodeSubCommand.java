@@ -49,7 +49,7 @@ public class GamemodeSubCommand implements SubCommand {
         }
 
         gameManager.setGameMode(mode);
-        configManager.setGamemode(mode);
+        configManager.setGameMode(mode);
 
         sender.sendMessage(ChatColor.GREEN + "Spielmodus geändert auf: " + ChatColor.AQUA + mode);
         configManager.debug("Admin hat Spielmodus geändert: " + mode);

@@ -58,7 +58,7 @@ public class PointsManager {
         }
 
         // ===== Globale Statistik =====
-        String summary = stats.formatSummary(nameCache);
+        String summary = stats.formatSummary(nameCache, roles);
         Bukkit.broadcastMessage(summary);
 
         // ===== Persönliche Statistik + Punktevergabe =====

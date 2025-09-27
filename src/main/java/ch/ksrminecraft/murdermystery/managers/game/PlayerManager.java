@@ -1,13 +1,18 @@
 package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.listeners.SignListener;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
 import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.managers.support.MapManager;
+import ch.ksrminecraft.murdermystery.model.Arena;
 import ch.ksrminecraft.murdermystery.model.Role;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -21,19 +26,32 @@ public class PlayerManager {
     private final MurderMystery plugin;
     private final MapManager mapManager;
     private final ConfigManager configManager;
+    private final ArenaManager arenaManager;
 
     public PlayerManager(GameManager gameManager, MurderMystery plugin, ArenaManager arenaManager, ConfigManager configManager) {
         this.gameManager = gameManager;
         this.plugin = plugin;
         this.mapManager = new MapManager(plugin, arenaManager);
         this.configManager = configManager;
+        this.arenaManager = arenaManager;
     }
 
+    // Standard-Join (ohne Arena-Filter)
     public void handleJoin(Player p) {
+        joinInternal(p, null);
+    }
+
+    // Join mit Arena-Size (small/mid/large)
+    public void handleJoin(Player p, String size) {
+        joinInternal(p, size);
+    }
+
+    // Gemeinsame Join-Logik
+    private void joinInternal(Player p, String size) {
         UUID uuid = p.getUniqueId();
 
         if (gameManager.isGameStarted()) {
-            sendToLobby(p);
+            mapManager.teleportToLobby(p);
             p.sendMessage(ChatColor.YELLOW + "Es läuft gerade eine MurderMystery-Runde.");
             p.sendMessage(ChatColor.GRAY + "Bitte warte in der Lobby, bis die Runde vorbei ist.");
             plugin.debug("Join von " + p.getName() + " blockiert → Spiel läuft bereits.");
@@ -43,18 +61,27 @@ public class PlayerManager {
 
         if (gameManager.getPlayers().add(uuid)) {
             resetPlayer(p);
-            sendToLobby(p);
+            mapManager.teleportToLobby(p);
 
             plugin.debug("Spieler " + p.getName() + " ist der Lobby beigetreten. Spielerzahl="
-                    + gameManager.getPlayers().size());
+                    + gameManager.getPlayers().size()
+                    + (size != null ? " (gewünschte Größe: " + size + ")" : ""));
 
             gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
 
-            if (gameManager.getPlayers().size() >= gameManager.getMinPlayers()) {
-                plugin.debug("Mindestanzahl erreicht (" + gameManager.getPlayers().size() + "/"
-                        + gameManager.getMinPlayers() + "). Countdown wird gestartet.");
+            int needed = gameManager.getMinPlayers() - gameManager.getPlayers().size();
+            if (needed > 0) {
+                Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() +
+                        ChatColor.GRAY + " hat die Wartelobby betreten. Es werden noch " +
+                        ChatColor.GOLD + needed + ChatColor.GRAY +
+                        " Spieler benötigt, um das Spiel zu starten.");
+            } else {
+                Bukkit.broadcastMessage(ChatColor.GREEN + "✅ Mindestanzahl erreicht! Spiel startet bald...");
                 gameManager.startCountdown();
             }
+
+            SignListener.updateJoinSigns(plugin);
+
         } else {
             p.sendMessage(ChatColor.GRAY + "Du bist schon in der Lobby");
         }
@@ -67,9 +94,12 @@ public class PlayerManager {
         gameManager.getSpectators().remove(uuid);
         RoleManager.removePlayer(uuid);
 
-        sendToMainWorld(p);
+        mapManager.teleportToMainWorld(p);
         p.sendMessage(ChatColor.YELLOW + "Du hast die MurderMystery-Runde verlassen.");
         plugin.debug("Spieler " + p.getName() + " hat das Spiel verlassen.");
+
+        // Update Join-Schilder
+        SignListener.updateJoinSigns(plugin);
 
         if (gameManager.getPlayers().isEmpty()) {
             plugin.debug("Letzter Spieler hat das Spiel verlassen. Reset wird ausgeführt.");
@@ -77,23 +107,64 @@ public class PlayerManager {
         }
     }
 
-    public void eliminate(Player p) {
-        UUID uuid = p.getUniqueId();
-        if (gameManager.getSpectators().add(uuid)) {
-            gameManager.getPlayers().remove(uuid);
-            p.setGameMode(GameMode.SPECTATOR);
-            p.sendMessage(ChatColor.RED + "Du wurdest getötet");
-            plugin.debug("Spieler " + p.getName() + " wurde eliminiert und ist jetzt Spectator.");
+    public void eliminate(Player victim, Player killer) {
+        UUID victimId = victim.getUniqueId();
+
+        if (gameManager.getSpectators().add(victimId)) {
+            gameManager.getPlayers().remove(victimId);
+
+            // Detective droppt Items
+            if (RoleManager.getRole(victimId) == Role.DETECTIVE) {
+                ItemStack bow = ItemManager.createDetectiveBow();
+                ItemStack arrow = new ItemStack(Material.ARROW, 1);
+                victim.getWorld().dropItemNaturally(victim.getLocation(), bow);
+                victim.getWorld().dropItemNaturally(victim.getLocation(), arrow);
+            }
+
+            // Kill-Tracking
+            if (killer != null) {
+                UUID killerId = killer.getUniqueId();
+                Role killerRole = RoleManager.getRole(killerId);
+
+                if (killerRole == Role.MURDERER) {
+                    gameManager.getOrCreateRoundStats().addKill(killerId, victimId);
+                } else if (killerRole == Role.DETECTIVE &&
+                        RoleManager.getRole(victimId) == Role.BYSTANDER) {
+                    gameManager.getOrCreateRoundStats().addDetectiveInnocentKill(killerId);
+                }
+            }
+
+            victim.setGameMode(GameMode.SPECTATOR);
+            victim.sendMessage(ChatColor.RED + "Du wurdest getötet");
+
             gameManager.checkWinConditions();
         }
     }
 
-    public void startGame(Set<UUID> players, Map<UUID, Role> roles) {
+    // StartGame jetzt mit Arena-Size
+    public void startGame(Set<UUID> players, Map<UUID, Role> roles, String arenaSize) {
         plugin.debug("Spielstart mit " + players.size() + " Spielern.");
+
         roles.putAll(RoleManager.assignRoles(players));
 
-        mapManager.teleportToRandomArena(players);
-        plugin.debug("Alle Spieler wurden in eine zufällige Map teleportiert.");
+        Arena chosenArena = null;
+        if (arenaSize != null) {
+            chosenArena = arenaManager.getRandomArenaBySize(arenaSize);
+            plugin.debug("Arena-Auswahl nach Größe (" + arenaSize + "): " +
+                    (chosenArena != null ? chosenArena.getName() : "Fallback → random"));
+        }
+        if (chosenArena == null) {
+            chosenArena = arenaManager.getRandomArena();
+            plugin.debug("Arena-Auswahl → Standard Random");
+        }
+
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                p.teleport(chosenArena.getRandomSpawn());
+                plugin.debug("Spieler " + p.getName() + " wurde nach Arena '" + chosenArena.getName() + "' teleportiert.");
+            }
+        }
 
         for (Map.Entry<UUID, Role> entry : roles.entrySet()) {
             Player p = Bukkit.getPlayer(entry.getKey());
@@ -118,16 +189,15 @@ public class PlayerManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
                 resetPlayer(p);
-                sendToLobby(p);
-                plugin.debug("Reset für Spieler " + p.getName() + " ausgeführt.");
+                mapManager.teleportToMainWorld(p);
+                plugin.debug("Reset für Spieler " + p.getName() + " ausgeführt (zurück in Main-World).");
             }
         }
     }
 
-    // ================= Hilfsmethoden =================
-
+    // Hilfsmethoden
     private void resetPlayer(Player p) {
-        p.setGameMode(GameMode.SURVIVAL);
+        p.setGameMode(configManager.getPlayerGameMode());
         p.setHealth(p.getMaxHealth());
         p.setFoodLevel(20);
         p.setSaturation(20);
@@ -142,22 +212,6 @@ public class PlayerManager {
                 p.getInventory().remove(item);
                 plugin.debug("Cleanup: Entfernt Spezialitem bei Spieler " + p.getName());
             }
-        }
-    }
-
-    private void sendToLobby(Player p) {
-        String lobbyWorldName = configManager.getLobbyWorld();
-        World lobby = Bukkit.getWorld(lobbyWorldName);
-        if (lobby != null) {
-            p.teleport(lobby.getSpawnLocation());
-        }
-    }
-
-    private void sendToMainWorld(Player p) {
-        String mainWorldName = configManager.getMainWorld();
-        World main = Bukkit.getWorld(mainWorldName);
-        if (main != null) {
-            p.teleport(main.getSpawnLocation());
         }
     }
 

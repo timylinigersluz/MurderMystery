@@ -1,34 +1,30 @@
 # ==========================================
 # MurderMystery3 - Konfigurationsdatei
 # ==========================================
+# Hinweise:
+# - Alle Werte können angepasst werden
+# - Kommentare beschreiben, wie sie sich im Spiel auswirken
+# - Einheit für Zeiten: Sekunden (außer Nachrichten-Cooldown → Millisekunden)
+# ==========================================
 
 # -------------------------------
-# Welten-Konfiguration
+# 🌍 Welten-Konfiguration
 # -------------------------------
-# Spieler kehren nach Spielende in die "main"-Welt zurück.
-# In der "lobby"-Welt warten Spieler zwischen den Runden.
 worlds:
-  main: world
-  lobby: lobby
+  main: world   # Hauptwelt, in die Spieler nach Spielende zurückkehren
+  lobby: lobby  # Lobby-Welt, in der Spieler zwischen den Runden warten
 
 # -------------------------------
-# Arenen-Definitionen
+# 🗺 Arenen-Definitionen
 # -------------------------------
-# Jede Arena braucht:
-# - world: Name der Multiverse-Welt
-# - maxPlayers: Maximale Spieleranzahl in dieser Arena
-# - spawns: Liste von festen Koordinaten, wo Spieler gespawnt werden (Format: x,y,z)
-# - region (optional): Bereich in dem zufällige Safe-Spawns generiert werden,
-#   falls keine spawns angegeben sind. Format:
-#   region:
-#     minX: -50
-#     maxX: 50
-#     minZ: -50
-#     maxZ: 50
+# - Jede Arena ist eine eigene Multiverse-Welt
+# - Spieler werden zufällig auf definierte Spawnpunkte verteilt
+# - Alternativ kann eine Region angegeben werden, wenn keine exakten Spawns gesetzt sind
 arenas:
   map1:
     world: map1
     maxPlayers: 16
+    size: small
     spawns:
       - 0,64,0
       - 10,64,0
@@ -36,7 +32,8 @@ arenas:
   map2:
     world: map2
     maxPlayers: 12
-    region:
+    size: mid
+    region:        # Region wird genutzt, wenn keine exakten Spawns angegeben
       minX: -30
       maxX: 30
       minZ: -30
@@ -45,63 +42,73 @@ arenas:
   map3:
     world: map3
     maxPlayers: 20
+    size: large
     spawns:
       - -5,64,-5
 
 # -------------------------------
-# Spiel-Parameter
+# ⚙ Spiel-Parameter
 # -------------------------------
-# Mindestanzahl Spieler, damit eine Runde starten kann
-min-players: 3
-
-# Countdown (in Sekunden), wenn Mindestanzahl erreicht ist
-countdown-seconds: 15
-
-# Maximale Rundenzeit in Sekunden (z. B. 600 = 10 Minuten)
-# Falls erreicht → Runde endet automatisch.
-max-game-seconds: 600
+min-players: 3         # Mindestanzahl Spieler, damit eine Runde starten kann
+countdown-seconds: 15  # Countdown in Sekunden bis Rundenstart
+max-game-seconds: 600  # Maximale Rundenzeit (z. B. 600 = 10 Minuten)
 
 # -------------------------------
-# Spielmodus
+# 🎮 Spielmodus
 # -------------------------------
-# classic      = Detective tot → Runde endet sofort
-# bow-fallback = Bogen fällt zu Boden → neuer Spieler kann Detective werden
+# classic      → Detective stirbt → Runde endet sofort
+# bow-fallback → Detective-Bogen fällt zu Boden, neuer Spieler kann Detective werden
 gamemode: bow-fallback
 
 # -------------------------------
-# Punkte-System (dynamisch)
+# 🔒 Schutz-Einstellungen
 # -------------------------------
-# Punkte werden am Rundenende verteilt (RoundStats).
-# Werte können angepasst werden, je nach gewünschtem Balancing.
-points:
-  kill-murderer: 5      # Detective erhält Punkte, wenn er den Murderer tötet
-  kill-innocent: -5     # Detective verliert Punkte, wenn er fälschlicherweise Innocent tötet
-  kill-as-murderer: 2   # Murderer erhält Punkte pro Kill
-  survive: 3            # Punkte für das Überleben einer Runde
-  win: 5                # Bonuspunkte für den eigentlichen Sieger (Murderer oder Detective)
-  co-win: 2             # Punkte für Mitgewinner (Bystander)
-  lose: 2               # Trostpunkte für Verlierer
-  quit: -3              # Punkteabzug, wenn Spieler während des Spiels quitted
+protection:
+  allow-admin-move: true   # true = Admins dürfen Bogen/Schwert bewegen, false = blockiert
 
 # -------------------------------
-# RankPointsAPI Datenbank
+# 🏆 Punkte-System
 # -------------------------------
-# Zugangsdaten für RankPointsAPI (MySQL/MariaDB).
+# Punkte werden am Rundenende verteilt (RoundStats).
+points:
+  kill-murderer: 5       # Detective: Punkte für Töten des Murderers
+  kill-innocent: -5      # Detective: Punkteverlust pro Fehlabschuss
+  kill-as-murderer: 2    # Murderer: Punkte pro Kill
+  survive: 3             # Punkte für Überleben einer Runde
+  win: 5                 # Bonus für Sieger (Murderer oder Detective)
+  co-win: 2              # Bonus für Innocents bei Detective-Sieg
+  lose: 2                # Trostpunkte für Verlierer
+  consolation: 2         # Trostpunkte für Innocents ohne Überleben
+  quit: -3               # Punkteabzug beim Verlassen
+  time-up: 3             # Punkte bei Zeitablauf (Unentschieden)
+
+# -------------------------------
+# 🛠 Debug
+# -------------------------------
+debug: true              # true = erweiterte Logs in Konsole
+
+# -------------------------------
+# 📢 Nachrichten-Cooldown
+# -------------------------------
+# Schutz vor Spam durch wiederholte Nachrichten.
+# Einheit = Millisekunden (1000 ms = 1 Sekunde)
+message-cooldown:
+  global: 3000      # Cooldown für globale Nachrichten (Broadcasts, Konsole)
+  player: 2000      # Cooldown für wiederholte Meldungen pro Spieler
+
+# -------------------------------
+# 🎮 Spielmodus der Spieler
+# -------------------------------
+# Optionen: survival, adventure
+player-gamemode: adventure
+
+# -------------------------------
+# 🗄 RankPointsAPI (Punkte-Datenbank)
+# -------------------------------
 Rank-Points-API-url: "jdbc:mysql://mc-mysql01.mc-host24.de:3306/s31069_player-point"
 Rank-Points-API-user: "username"
 Rank-Points-API-password: "password"
 
-# Erweiterte Optionen für RankPointsAPI
 rankpoints:
-  debug: false           # true = zusätzliche SQL-Logs ins Logfile schreiben
+  debug: false           # true = zusätzliche SQL-Logs in Konsole
   exclude-staff: false   # true = Staff (Admin/Mod) wird von Punktevergabe ausgeschlossen
-
-# -------------------------------
-# Debug
-# -------------------------------
-# Debug-Modus für MurderMystery:
-# true = mehr Konsolen-Logs (für Entwickler sinnvoll)
-debug: true
-
-protection:
-  allow-admin-move: true   # true = Admins dürfen Bogen/Schwert bewegen, false = blockiert

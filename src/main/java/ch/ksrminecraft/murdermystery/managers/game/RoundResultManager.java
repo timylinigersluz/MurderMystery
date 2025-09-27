@@ -2,8 +2,8 @@ package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.model.Role;
+import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -22,161 +22,158 @@ public class RoundResultManager {
 
     public void handleRoundEnd(EndCondition condition,
                                Map<UUID, Role> roles,
-                               Map<UUID, Integer> kills,
-                               Set<UUID> survivors,
-                               Set<UUID> quitters) {
+                               RoundStats roundStats) {
 
         Map<UUID, Integer> roundPoints = new HashMap<>();
 
-        switch (condition) {
-            case MURDERER_WIN -> distributeMurdererWin(roundPoints, roles, kills, quitters);
-            case DETECTIVE_WIN -> distributeDetectiveWin(roundPoints, roles, kills, survivors, quitters);
-            case TIME_UP -> distributeTimeUp(roundPoints, roles, kills, survivors, quitters);
-        }
-
-        for (UUID uuid : roundPoints.keySet()) {
-            int pts = Math.max(0, roundPoints.get(uuid));
-            if (!quitters.contains(uuid)) {
-                pointsManager.addPointsToPlayer(uuid, pts);
-            }
-        }
-
         for (UUID uuid : roles.keySet()) {
+            Role role = roles.get(uuid);
+            int total = 0;
+            List<String> details = new ArrayList<>();
+
+            // --- Rollen-spezifisch ---
+            switch (role) {
+                case MURDERER -> {
+                    int kills = roundStats.getKills(uuid);
+                    int killPoints = kills * plugin.getConfigManager().getPointsKillAsMurderer();
+
+                    if (condition == EndCondition.MURDERER_WIN) {
+                        total += plugin.getConfigManager().getPointsWin();
+                        details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+                        if (kills > 0) {
+                            total += killPoints;
+                            details.add("Kills: " + kills + " -> " + killPoints);
+                        }
+                    } else if (condition == EndCondition.DETECTIVE_WIN) {
+                        details.add("Spielausgang:  Verloren");
+                        if (kills > 0) {
+                            total += killPoints;
+                            details.add("Kills: " + kills + " -> " + killPoints);
+                        } else {
+                            int consolation = plugin.getConfigManager().getPointsConsolation();
+                            total += consolation;
+                            details.add("Trostpunkte: " + consolation);
+                        }
+                    } else if (condition == EndCondition.TIME_UP) {
+                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        total += tie;
+                        details.add("Spielausgang:  Unentschieden -> " + tie);
+                        if (kills > 0) {
+                            total += killPoints;
+                            details.add("Kills: " + kills + " -> " + killPoints);
+                        }
+                    }
+                }
+
+                case DETECTIVE -> {
+                    if (condition == EndCondition.DETECTIVE_WIN) {
+                        if (roundStats.hasSurvived(uuid)) {
+                            // Fall 1: Detective gewinnt & lebt
+                            total += plugin.getConfigManager().getPointsWin();
+                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+
+                            total += plugin.getConfigManager().getPointsKillMurderer();
+                            details.add("Mörder erwischt -> " + plugin.getConfigManager().getPointsKillMurderer());
+                        } else {
+                            // Fall 2: Detective stirbt (Rollenwechsel)
+                            total += plugin.getConfigManager().getPointsCoWin();
+                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsCoWin() + " (co-win)");
+                        }
+                    } else if (condition == EndCondition.MURDERER_WIN) {
+                        // Fall 3: Murderer gewinnt
+                        details.add("Spielausgang:  Verloren");
+                        int consolation = plugin.getConfigManager().getPointsConsolation();
+                        total += consolation;
+                        details.add("Trostpunkte: " + consolation);
+                    } else if (condition == EndCondition.TIME_UP) {
+                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        total += tie;
+                        details.add("Spielausgang:  Unentschieden -> " + tie);
+
+                        if (roundStats.hasSurvived(uuid)) {
+                            total += plugin.getConfigManager().getPointsSurvive();
+                            details.add("Überlebt: " + plugin.getConfigManager().getPointsSurvive());
+                        } else {
+                            details.add("Überlebt: nein");
+                        }
+                    }
+
+                    // Fehlabschüsse gelten in allen Fällen
+                    int fails = roundStats.getDetectiveInnocentKills(uuid);
+                    if (fails > 0) {
+                        int penalty = fails * plugin.getConfigManager().getPointsKillInnocent();
+                        total += penalty; // kann negativ sein, wird unten auf ≥0 gekappt
+                        details.add("Fehlabschüsse: " + fails + " -> -" + Math.abs(penalty));
+                    }
+                }
+
+                case BYSTANDER -> {
+                    if (condition == EndCondition.DETECTIVE_WIN) {
+                        if (roundStats.hasSurvived(uuid)) {
+                            total += plugin.getConfigManager().getPointsCoWin();
+                            details.add("Spielausgang:  Sieg -> " + plugin.getConfigManager().getPointsCoWin());
+
+                            total += plugin.getConfigManager().getPointsSurvive();
+                            details.add("Überlebt: ja -> " + plugin.getConfigManager().getPointsSurvive());
+                        } else {
+                            total += plugin.getConfigManager().getPointsWin();
+                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+                            details.add("Überlebt: nein");
+                        }
+                    } else if (condition == EndCondition.MURDERER_WIN) {
+                        details.add("Spielausgang:  Verloren");
+                        if (!roundStats.hasSurvived(uuid)) {
+                            int consolation = plugin.getConfigManager().getPointsConsolation();
+                            total += consolation;
+                            details.add("Überlebt: nein");
+                            details.add("Trostpunkte: " + consolation);
+                        } else {
+                            details.add("Überlebt: ja");
+                            details.add("→ keine Punkte");
+                        }
+                    } else if (condition == EndCondition.TIME_UP) {
+                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        total += tie;
+                        details.add("Spielausgang:  Unentschieden -> " + tie);
+                        if (roundStats.hasSurvived(uuid)) {
+                            total += plugin.getConfigManager().getPointsSurvive();
+                            details.add("Überlebt: ja -> " + plugin.getConfigManager().getPointsSurvive());
+                        } else {
+                            details.add("Überlebt: nein");
+                        }
+                    }
+                }
+            }
+
+            // keine negativen Ergebnisse
+            total = Math.max(0, total);
+            roundPoints.put(uuid, total);
+
+            // --- Nachricht an Spieler ---
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                int points = roundPoints.getOrDefault(uuid, 0);
-                int newTotal = pointsManager.getPoints(uuid);
-
                 p.sendMessage("§e===== Deine Runde =====");
-                p.sendMessage("§7Rolle: " + roles.get(uuid));
-                p.sendMessage("§7Kills: §c" + kills.getOrDefault(uuid, 0));
-                p.sendMessage("§7Überlebt: " + (survivors.contains(uuid) ? "§aJa" : "§cNein"));
-                if (quitters.contains(uuid)) {
-                    p.sendMessage("§7Status: §eVorzeitig verlassen");
-                }
-                p.sendMessage("§7Rundenpunkte: §b" + points);
+                p.sendMessage("§7Rolle: " + role);
+                for (String d : details) p.sendMessage("§7" + d);
+                p.sendMessage("§7Rundenpunkte: §b" + total);
+                int newTotal = pointsManager.getPoints(uuid) + total;
                 p.sendMessage("§7Neuer Punktestand: §a" + newTotal);
                 p.sendMessage("§e=====================");
             }
         }
 
-        broadcastSummary(roundPoints, roles, condition);
-    }
-
-    private void distributeMurdererWin(Map<UUID, Integer> points,
-                                       Map<UUID, Role> roles,
-                                       Map<UUID, Integer> kills,
-                                       Set<UUID> quitters) {
-        for (UUID uuid : roles.keySet()) {
-            Role role = roles.get(uuid);
-            int base = 0;
-
-            switch (role) {
-                case MURDERER -> {
-                    base += kills.getOrDefault(uuid, 0) * plugin.getConfigManager().getPointsKillAsMurderer();
-                    base += plugin.getConfigManager().getPointsWin();
-                }
-                case DETECTIVE -> {
-                    base += plugin.getConfigManager().getPointsLose();
-                    if (plugin.getGameManager().didDetectiveKillInnocent(uuid)) {
-                        base -= plugin.getConfigManager().getPointsKillInnocent();
-                    }
-                }
-                case BYSTANDER -> base += plugin.getConfigManager().getPointsLose();
-            }
-
-            if (quitters.contains(uuid)) base = 0;
-            points.put(uuid, base);
+        // Punkte gutschreiben
+        for (UUID uuid : roundPoints.keySet()) {
+            pointsManager.addPointsToPlayer(uuid, roundPoints.get(uuid));
         }
-    }
 
-    private void distributeDetectiveWin(Map<UUID, Integer> points,
-                                        Map<UUID, Role> roles,
-                                        Map<UUID, Integer> kills,
-                                        Set<UUID> survivors,
-                                        Set<UUID> quitters) {
-        for (UUID uuid : roles.keySet()) {
-            Role role = roles.get(uuid);
-            int base = 0;
-
-            switch (role) {
-                case MURDERER -> {
-                    base += plugin.getConfigManager().getPointsLose();
-                    base += kills.getOrDefault(uuid, 0) * plugin.getConfigManager().getPointsKillAsMurderer();
-                }
-                case DETECTIVE -> {
-                    base += plugin.getConfigManager().getPointsWin();
-                    base += plugin.getConfigManager().getPointsKillMurderer();
-                    if (plugin.getGameManager().didDetectiveKillInnocent(uuid)) {
-                        base -= plugin.getConfigManager().getPointsKillInnocent();
-                    }
-                }
-                case BYSTANDER -> {
-                    if (survivors.contains(uuid)) {
-                        base += plugin.getConfigManager().getPointsCoWin();
-                        base += plugin.getConfigManager().getPointsSurvive();
-                    } else {
-                        base += plugin.getConfigManager().getPointsCoWin();
-                    }
-                }
-            }
-
-            if (quitters.contains(uuid)) base = 0;
-            points.put(uuid, base);
+        // --- Detaillierte Gesamtübersicht ---
+        Map<UUID, String> nameCache = new HashMap<>();
+        for (UUID id : roles.keySet()) {
+            String name = Bukkit.getOfflinePlayer(id).getName();
+            if (name != null) nameCache.put(id, name);
         }
-    }
 
-    private void distributeTimeUp(Map<UUID, Integer> points,
-                                  Map<UUID, Role> roles,
-                                  Map<UUID, Integer> kills,
-                                  Set<UUID> survivors,
-                                  Set<UUID> quitters) {
-        for (UUID uuid : roles.keySet()) {
-            Role role = roles.get(uuid);
-            int base = 0;
-
-            switch (role) {
-                case MURDERER -> {
-                    base += kills.getOrDefault(uuid, 0) * plugin.getConfigManager().getPointsKillAsMurderer();
-                    if (survivors.contains(uuid)) base += plugin.getConfigManager().getPointsSurvive();
-                }
-                case DETECTIVE -> {
-                    if (survivors.contains(uuid)) base += plugin.getConfigManager().getPointsSurvive();
-                    if (plugin.getGameManager().didDetectiveKillInnocent(uuid)) {
-                        base -= plugin.getConfigManager().getPointsKillInnocent();
-                    }
-                }
-                case BYSTANDER -> {
-                    if (survivors.contains(uuid)) {
-                        base += plugin.getConfigManager().getPointsSurvive();
-                    } else {
-                        base += plugin.getConfigManager().getPointsLose();
-                    }
-                }
-            }
-
-            if (quitters.contains(uuid)) base = 0;
-            points.put(uuid, base);
-        }
-    }
-
-    private void broadcastSummary(Map<UUID, Integer> roundPoints,
-                                  Map<UUID, Role> roles,
-                                  EndCondition condition) {
-
-        List<Map.Entry<UUID, Integer>> sorted = new ArrayList<>(roundPoints.entrySet());
-        sorted.sort((a, b) -> b.getValue() - a.getValue());
-
-        ChatColor color = (condition == EndCondition.TIME_UP ? ChatColor.YELLOW :
-                (condition == EndCondition.MURDERER_WIN ? ChatColor.RED : ChatColor.GREEN));
-
-        Bukkit.broadcastMessage("§6===== Rundenstatistik =====");
-        for (Map.Entry<UUID, Integer> entry : sorted) {
-            UUID uuid = entry.getKey();
-            String name = Bukkit.getOfflinePlayer(uuid).getName();
-            int pts = entry.getValue();
-            Bukkit.broadcastMessage(color + name + " §7→ §b" + pts + " Punkte");
-        }
-        Bukkit.broadcastMessage("§6===========================");
+        Bukkit.broadcastMessage(roundStats.formatSummary(nameCache, roles));
     }
 }

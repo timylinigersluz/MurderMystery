@@ -13,6 +13,8 @@ public class ArenaManager {
     private final MurderMystery plugin;
     private final ConfigManager configManager;
     private final Map<String, Arena> arenas = new HashMap<>();
+    private final Map<String, String> arenaSizes = new HashMap<>(); // ArenaName → Size
+    private final Random random = new Random();
 
     public ArenaManager(MurderMystery plugin, ConfigManager configManager) {
         this.plugin = plugin;
@@ -20,11 +22,9 @@ public class ArenaManager {
         loadArenasFromConfig();
     }
 
-    /**
-     * Arenen aus dem ConfigManager laden
-     */
     private void loadArenasFromConfig() {
         arenas.clear();
+        arenaSizes.clear();
 
         Map<String, ConfigManager.ArenaConfig> arenaConfigs = configManager.getArenas();
         if (arenaConfigs.isEmpty()) {
@@ -35,6 +35,7 @@ public class ArenaManager {
         for (ConfigManager.ArenaConfig cfg : arenaConfigs.values()) {
             String worldName = cfg.getWorld();
             int maxPlayers = cfg.getMaxPlayers();
+            String size = cfg.getSize();
 
             World world = Bukkit.getWorld(worldName);
             if (world == null) {
@@ -42,45 +43,47 @@ public class ArenaManager {
                 continue;
             }
 
-            // === Spawns laden ===
             List<Location> spawns = new ArrayList<>();
             for (String s : cfg.getSpawns()) {
                 try {
                     String[] parts = s.split(",");
-                    if (parts.length < 3) {
-                        plugin.getLogger().warning("Ungültiger Spawn-Eintrag in Arena '" + cfg.getName() + "': " + s);
-                        continue;
-                    }
-
+                    if (parts.length < 3) continue;
                     double x = Double.parseDouble(parts[0].trim());
                     double y = Double.parseDouble(parts[1].trim());
                     double z = Double.parseDouble(parts[2].trim());
-
                     spawns.add(new Location(world, x, y, z));
                 } catch (Exception ex) {
                     plugin.getLogger().warning("Fehler beim Laden von Spawn '" + s + "' in Arena '" + cfg.getName() + "': " + ex.getMessage());
                 }
             }
 
-            // === Region laden (optional) ===
             Integer minX = cfg.getRegion().get("minX");
             Integer maxX = cfg.getRegion().get("maxX");
             Integer minZ = cfg.getRegion().get("minZ");
             Integer maxZ = cfg.getRegion().get("maxZ");
 
             String arenaKey = cfg.getName().toLowerCase();
-            Arena arena = new Arena(arenaKey, maxPlayers, spawns, world, minX, maxX, minZ, maxZ);
+            Arena arena = new Arena(
+                    arenaKey,
+                    maxPlayers,
+                    spawns,
+                    world,
+                    minX,
+                    maxX,
+                    minZ,
+                    maxZ,
+                    size // NEU: Größe wird an Arena übergeben
+            );
             arenas.put(arenaKey, arena);
+            arenaSizes.put(arenaKey, size.toLowerCase());
 
-            plugin.debug("Arena '" + arenaKey + "' geladen → Welt=" + worldName + ", MaxPlayers=" + maxPlayers + ", Spawns=" + spawns.size());
+            plugin.debug("Arena '" + arenaKey + "' geladen → Größe=" + size + ", Welt=" + worldName);
         }
     }
 
-    /** Lädt alle Arenen neu über den ConfigManager */
     public void reload() {
         configManager.reload();
         loadArenasFromConfig();
-        plugin.getLogger().info("ArenaManager neu geladen. " + arenas.size() + " Arenen verfügbar.");
     }
 
     public Arena getArena(String name) {
@@ -90,9 +93,21 @@ public class ArenaManager {
     public Arena getRandomArena() {
         if (arenas.isEmpty()) return null;
         List<Arena> list = new ArrayList<>(arenas.values());
-        return list.get(new Random().nextInt(list.size()));
+        return list.get(random.nextInt(list.size()));
     }
 
+    public Arena getRandomArenaBySize(String size) {
+        List<Arena> filtered = new ArrayList<>();
+        for (String key : arenas.keySet()) {
+            if (arenaSizes.getOrDefault(key, "unspecified").equalsIgnoreCase(size)) {
+                filtered.add(arenas.get(key));
+            }
+        }
+        if (filtered.isEmpty()) return getRandomArena();
+        return filtered.get(random.nextInt(filtered.size()));
+    }
+
+    /** Arena anhand der Welt bestimmen */
     public Arena getArenaForWorld(World world) {
         if (world == null) return null;
         return arenas.values().stream()

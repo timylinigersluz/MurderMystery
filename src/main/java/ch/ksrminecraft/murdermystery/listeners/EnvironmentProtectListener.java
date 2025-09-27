@@ -1,7 +1,9 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.model.Arena;
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -22,49 +24,58 @@ public class EnvironmentProtectListener implements Listener {
         this.plugin = plugin;
     }
 
+    private boolean isInArena(Player p) {
+        Arena arena = plugin.getArenaManager().getArenaForWorld(p.getWorld());
+        return arena != null;
+    }
+
+    private boolean isAdminBypassed(Player p) {
+        return p.hasPermission(ADMIN_PERMISSION) && p.getGameMode() == GameMode.CREATIVE;
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         Player p = event.getPlayer();
-        if (p.hasPermission(ADMIN_PERMISSION)) return;
+        if (!isInArena(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke platzieren!");
-        plugin.debug("BlockPlace verhindert: " + p.getName() + " → " + event.getBlockPlaced().getType());
+        p.sendMessage(ChatColor.RED + "Du darfst in der Arena keine Blöcke platzieren!");
+        plugin.debug("BlockPlace verhindert in Arena: " + p.getName() + " → " + event.getBlockPlaced().getType());
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player p = event.getPlayer();
-        if (p.hasPermission(ADMIN_PERMISSION)) return;
+        if (!isInArena(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke abbauen!");
-        plugin.debug("BlockBreak verhindert: " + p.getName() + " → " + event.getBlock().getType());
+        p.sendMessage(ChatColor.RED + "Du darfst in der Arena keine Blöcke abbauen!");
+        plugin.debug("BlockBreak verhindert in Arena: " + p.getName() + " → " + event.getBlock().getType());
     }
 
     @EventHandler
     public void onBucketEmpty(PlayerBucketEmptyEvent event) {
         Player p = event.getPlayer();
-        if (p.hasPermission(ADMIN_PERMISSION)) return;
+        if (!isInArena(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Eimer sind in MurderMystery deaktiviert!");
-        plugin.debug("BucketEmpty verhindert: " + p.getName());
+        p.sendMessage(ChatColor.RED + "Eimer sind in der Arena deaktiviert!");
+        plugin.debug("BucketEmpty verhindert in Arena: " + p.getName());
     }
 
     @EventHandler
     public void onBucketFill(PlayerBucketFillEvent event) {
         Player p = event.getPlayer();
-        if (p.hasPermission(ADMIN_PERMISSION)) return;
+        if (!isInArena(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        plugin.debug("BucketFill verhindert: " + p.getName());
+        plugin.debug("BucketFill verhindert in Arena: " + p.getName());
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player p = event.getPlayer();
-        if (p.hasPermission(ADMIN_PERMISSION)) return;
+        if (!isInArena(p) || isAdminBypassed(p)) return;
 
         ItemStack item = event.getItem();
         if (item == null) return;
@@ -72,8 +83,8 @@ public class EnvironmentProtectListener implements Listener {
         Material type = item.getType();
         if (type == Material.FLINT_AND_STEEL || type == Material.FIRE_CHARGE) {
             event.setCancelled(true);
-            p.sendMessage(ChatColor.RED + "Feuer ist in MurderMystery deaktiviert!");
-            plugin.debug("Feuerzeug/FireCharge verhindert: " + p.getName());
+            p.sendMessage(ChatColor.RED + "Feuer ist in der Arena deaktiviert!");
+            plugin.debug("Feuerzeug/FireCharge verhindert in Arena: " + p.getName());
         }
     }
 }
