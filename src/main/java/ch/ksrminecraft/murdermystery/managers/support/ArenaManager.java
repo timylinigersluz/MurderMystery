@@ -5,6 +5,7 @@ import ch.ksrminecraft.murdermystery.model.Arena;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.WorldCreator;
 
 import java.util.*;
 
@@ -37,10 +38,17 @@ public class ArenaManager {
             int maxPlayers = cfg.getMaxPlayers();
             String size = cfg.getSize();
 
+            // --- Auto-Load der Welt ---
             World world = Bukkit.getWorld(worldName);
             if (world == null) {
-                plugin.getLogger().severe("Arena '" + cfg.getName() + "': Welt '" + worldName + "' konnte nicht geladen werden!");
-                continue;
+                plugin.getLogger().warning("Welt '" + worldName + "' ist nicht geladen. Versuche zu laden...");
+                try {
+                    world = new WorldCreator(worldName).createWorld();
+                    plugin.getLogger().info("Welt '" + worldName + "' erfolgreich geladen!");
+                } catch (Exception ex) {
+                    plugin.getLogger().severe("Arena '" + cfg.getName() + "': Welt '" + worldName + "' konnte NICHT geladen werden! Fehler: " + ex.getMessage());
+                    continue;
+                }
             }
 
             List<Location> spawns = new ArrayList<>();
@@ -72,7 +80,7 @@ public class ArenaManager {
                     maxX,
                     minZ,
                     maxZ,
-                    size // NEU: Größe wird an Arena übergeben
+                    size // Größe wird an Arena übergeben
             );
             arenas.put(arenaKey, arena);
             arenaSizes.put(arenaKey, size.toLowerCase());

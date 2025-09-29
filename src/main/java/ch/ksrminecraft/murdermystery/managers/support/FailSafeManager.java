@@ -35,9 +35,27 @@ public class FailSafeManager {
 
                 switch (role) {
                     case DETECTIVE -> {
+                        // Bogen wiederherstellen
                         if (!p.getInventory().contains(ItemManager.createDetectiveBow())) {
                             p.getInventory().addItem(ItemManager.createDetectiveBow());
                             p.sendMessage(ChatColor.YELLOW + "Dein Detective-Bogen wurde wiederhergestellt!");
+                        }
+
+                        // Pfeil wiederherstellen (immer genau 1)
+                        long arrowCount = p.getInventory().all(org.bukkit.Material.ARROW)
+                                .values()
+                                .stream()
+                                .mapToInt(stack -> stack != null ? stack.getAmount() : 0)
+                                .sum();
+
+                        if (arrowCount == 0) {
+                            p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 1));
+                            p.sendMessage(ChatColor.YELLOW + "Dein Detective-Pfeil wurde wiederhergestellt!");
+                        } else if (arrowCount > 1) {
+                            // Sicherheit: auf 1 Pfeil reduzieren
+                            p.getInventory().remove(org.bukkit.Material.ARROW);
+                            p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 1));
+                            plugin.debug("Detective " + p.getName() + " hatte mehr als 1 Pfeil → korrigiert auf genau 1.");
                         }
                     }
                     case MURDERER -> {

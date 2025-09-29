@@ -1,6 +1,7 @@
 package ch.ksrminecraft.murdermystery.managers.support;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.listeners.SignListener;
 import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import org.bukkit.Bukkit;
 
@@ -22,6 +23,10 @@ public class GameTimerManager {
         this.timeLeft = maxSeconds;
 
         stop(); // Safety
+
+        // Bossbar für Spiel starten
+        gameManager.getBossBarManager().startGameTimer(maxSeconds);
+
         taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
             if (!gameManager.isGameStarted()) {
                 stop();
@@ -35,9 +40,14 @@ public class GameTimerManager {
                 return;
             }
 
+            // BossBar aktualisieren
             gameManager.getBossBarManager().updateGameTimer(timeLeft, maxGameSeconds);
-            timeLeft--;
 
+            // Join-Signs aktualisieren
+            SignListener.updateJoinSigns(plugin);
+
+            // Restzeit herunterzählen
+            timeLeft--;
         }, 20L, 20L);
     }
 
@@ -46,5 +56,16 @@ public class GameTimerManager {
             Bukkit.getScheduler().cancelTask(taskId);
             taskId = -1;
         }
+        gameManager.getBossBarManager().cancelGameBar(); // BossBar verstecken
+    }
+
+    /** Gibt die verbleibenden Sekunden zurück */
+    public int getRemainingSeconds() {
+        return timeLeft;
+    }
+
+    /** Gibt die maximale Rundendauer zurück */
+    public int getMaxGameSeconds() {
+        return maxGameSeconds;
     }
 }

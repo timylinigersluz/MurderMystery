@@ -7,6 +7,8 @@ import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 
+import java.util.UUID;
+
 public class BossBarManager {
 
     public enum Mode { LOBBY, GAME }
@@ -28,12 +30,13 @@ public class BossBarManager {
         lobbyBar.setTitle("Spiel startet in " + seconds + "s");
         lobbyBar.setProgress(1.0);
         lobbyBar.setVisible(true);
-        addAllOnlinePlayers(lobbyBar);
+
+        // Alle Online-Spieler sehen die Lobby-Bar
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            lobbyBar.addPlayer(p);
+        }
     }
 
-    /**
-     * Aktualisiert die Lobby-BossBar während des Countdowns.
-     */
     public void updateLobbyCountdown(int secondsLeft, int total) {
         if (!lobbyBar.isVisible()) return;
         lobbyBar.setTitle("Spiel startet in " + secondsLeft + "s");
@@ -47,10 +50,23 @@ public class BossBarManager {
 
     // ----------------- Game BossBar -----------------
     public void startGameTimer(int seconds) {
-        gameBar.setTitle("Spielzeit: " + seconds + "s");
+        int minutes = seconds / 60;
+        int sec = seconds % 60;
+        String formatted = String.format("%02d:%02d", minutes, sec);
+
+        gameBar.setTitle("Spielzeit: " + formatted);
         gameBar.setProgress(1.0);
         gameBar.setVisible(true);
-        addAllOnlinePlayers(gameBar);
+
+        // Nur aktive Spieler + Spectators hinzufügen
+        for (UUID uuid : plugin.getGameManager().getPlayers()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) gameBar.addPlayer(p);
+        }
+        for (UUID uuid : plugin.getGameManager().getSpectators()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) gameBar.addPlayer(p);
+        }
     }
 
     public void updateGameTimer(int timeLeft, int total) {
@@ -75,11 +91,5 @@ public class BossBarManager {
     public void removePlayer(Player player) {
         lobbyBar.removePlayer(player);
         gameBar.removePlayer(player);
-    }
-
-    private void addAllOnlinePlayers(BossBar bar) {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            bar.addPlayer(p);
-        }
     }
 }

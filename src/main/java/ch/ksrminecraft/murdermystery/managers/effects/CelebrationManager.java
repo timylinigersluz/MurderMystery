@@ -19,9 +19,9 @@ public class CelebrationManager {
         if (player == null || !player.isOnline()) return;
 
         for (int i = 0; i < 3; i++) {
-            int delay = i * 20;
+            int delay = i * 20; // jede Rakete um 1 Sekunde versetzt
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                Location loc = player.getLocation();
+                Location loc = player.getLocation().add(0, 1, 0);
                 Firework firework = (Firework) loc.getWorld().spawnEntity(loc, EntityType.FIREWORK_ROCKET);
 
                 FireworkMeta meta = firework.getFireworkMeta();
@@ -32,7 +32,7 @@ public class CelebrationManager {
                         .trail(true)
                         .flicker(true)
                         .build());
-                meta.setPower(1);
+                meta.setPower(1); // kurze Flugzeit
                 firework.setFireworkMeta(meta);
             }, delay);
         }

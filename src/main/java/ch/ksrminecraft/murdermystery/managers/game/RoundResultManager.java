@@ -4,6 +4,7 @@ import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -31,6 +32,10 @@ public class RoundResultManager {
             int total = 0;
             List<String> details = new ArrayList<>();
 
+            // Überlebensstatus über GameManager ermitteln
+            boolean survived = plugin.getGameManager().getPlayers().contains(uuid);
+            plugin.debug("Überlebensstatus für " + Bukkit.getOfflinePlayer(uuid).getName() + ": " + survived);
+
             // --- Rollen-spezifisch ---
             switch (role) {
                 case MURDERER -> {
@@ -39,107 +44,125 @@ public class RoundResultManager {
 
                     if (condition == EndCondition.MURDERER_WIN) {
                         total += plugin.getConfigManager().getPointsWin();
-                        details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+                        details.add(ChatColor.GRAY + "Spielausgang: "
+                                + ChatColor.GREEN + "Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+
                         if (kills > 0) {
                             total += killPoints;
-                            details.add("Kills: " + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: "
+                                    + ChatColor.GREEN + kills + " -> " + killPoints);
                         }
                     } else if (condition == EndCondition.DETECTIVE_WIN) {
-                        details.add("Spielausgang:  Verloren");
+                        details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
                         if (kills > 0) {
                             total += killPoints;
-                            details.add("Kills: " + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: "
+                                    + ChatColor.GREEN + kills + " -> " + killPoints);
                         } else {
                             int consolation = plugin.getConfigManager().getPointsConsolation();
                             total += consolation;
-                            details.add("Trostpunkte: " + consolation);
+                            details.add(ChatColor.GRAY + "Trostpunkte: "
+                                    + ChatColor.GREEN + consolation);
                         }
                     } else if (condition == EndCondition.TIME_UP) {
                         int tie = plugin.getConfigManager().getPointsTimeUp();
                         total += tie;
-                        details.add("Spielausgang:  Unentschieden -> " + tie);
+                        details.add(ChatColor.GRAY + "Spielausgang: "
+                                + ChatColor.YELLOW + "Unentschieden -> " + tie);
+
                         if (kills > 0) {
                             total += killPoints;
-                            details.add("Kills: " + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: "
+                                    + ChatColor.GREEN + kills + " -> " + killPoints);
                         }
                     }
                 }
 
                 case DETECTIVE -> {
                     if (condition == EndCondition.DETECTIVE_WIN) {
-                        if (roundStats.hasSurvived(uuid)) {
-                            // Fall 1: Detective gewinnt & lebt
+                        if (survived) {
                             total += plugin.getConfigManager().getPointsWin();
-                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+                            details.add(ChatColor.GRAY + "Spielausgang: "
+                                    + ChatColor.GREEN + "Gewonnen -> " + plugin.getConfigManager().getPointsWin());
 
                             total += plugin.getConfigManager().getPointsKillMurderer();
-                            details.add("Mörder erwischt -> " + plugin.getConfigManager().getPointsKillMurderer());
+                            details.add(ChatColor.GRAY + "Mörder erwischt: "
+                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsKillMurderer());
                         } else {
-                            // Fall 2: Detective stirbt (Rollenwechsel)
                             total += plugin.getConfigManager().getPointsCoWin();
-                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsCoWin() + " (co-win)");
+                            details.add(ChatColor.GRAY + "Spielausgang: "
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
                         }
                     } else if (condition == EndCondition.MURDERER_WIN) {
-                        // Fall 3: Murderer gewinnt
-                        details.add("Spielausgang:  Verloren");
+                        details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
                         int consolation = plugin.getConfigManager().getPointsConsolation();
                         total += consolation;
-                        details.add("Trostpunkte: " + consolation);
+                        details.add(ChatColor.GRAY + "Trostpunkte: "
+                                + ChatColor.GREEN + consolation);
                     } else if (condition == EndCondition.TIME_UP) {
                         int tie = plugin.getConfigManager().getPointsTimeUp();
                         total += tie;
-                        details.add("Spielausgang:  Unentschieden -> " + tie);
+                        details.add(ChatColor.GRAY + "Spielausgang: "
+                                + ChatColor.YELLOW + "Unentschieden -> " + tie);
 
-                        if (roundStats.hasSurvived(uuid)) {
+                        if (survived) {
                             total += plugin.getConfigManager().getPointsSurvive();
-                            details.add("Überlebt: " + plugin.getConfigManager().getPointsSurvive());
+                            details.add(ChatColor.GRAY + "Überlebt: "
+                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
                         } else {
-                            details.add("Überlebt: nein");
+                            details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
                     }
 
-                    // Fehlabschüsse gelten in allen Fällen
                     int fails = roundStats.getDetectiveInnocentKills(uuid);
                     if (fails > 0) {
                         int penalty = fails * plugin.getConfigManager().getPointsKillInnocent();
-                        total += penalty; // kann negativ sein, wird unten auf ≥0 gekappt
-                        details.add("Fehlabschüsse: " + fails + " -> -" + Math.abs(penalty));
+                        total += penalty;
+                        details.add(ChatColor.GRAY + "Fehlabschüsse: "
+                                + ChatColor.RED + fails + " -> -" + Math.abs(penalty));
                     }
                 }
 
                 case BYSTANDER -> {
                     if (condition == EndCondition.DETECTIVE_WIN) {
-                        if (roundStats.hasSurvived(uuid)) {
+                        if (survived) {
                             total += plugin.getConfigManager().getPointsCoWin();
-                            details.add("Spielausgang:  Sieg -> " + plugin.getConfigManager().getPointsCoWin());
+                            details.add(ChatColor.GRAY + "Spielausgang: "
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
 
                             total += plugin.getConfigManager().getPointsSurvive();
-                            details.add("Überlebt: ja -> " + plugin.getConfigManager().getPointsSurvive());
+                            details.add(ChatColor.GRAY + "Überlebt: "
+                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
                         } else {
-                            total += plugin.getConfigManager().getPointsWin();
-                            details.add("Spielausgang:  Gewonnen -> " + plugin.getConfigManager().getPointsWin());
-                            details.add("Überlebt: nein");
+                            total += plugin.getConfigManager().getPointsCoWin();
+                            details.add(ChatColor.GRAY + "Spielausgang: "
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
+                            details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
                     } else if (condition == EndCondition.MURDERER_WIN) {
-                        details.add("Spielausgang:  Verloren");
-                        if (!roundStats.hasSurvived(uuid)) {
+                        details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
+                        if (!survived) {
                             int consolation = plugin.getConfigManager().getPointsConsolation();
                             total += consolation;
-                            details.add("Überlebt: nein");
-                            details.add("Trostpunkte: " + consolation);
+                            details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
+                            details.add(ChatColor.GRAY + "Trostpunkte: "
+                                    + ChatColor.GREEN + consolation);
                         } else {
-                            details.add("Überlebt: ja");
-                            details.add("→ keine Punkte");
+                            details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.GREEN + "ja");
+                            details.add(ChatColor.GRAY + "→ keine Punkte");
                         }
                     } else if (condition == EndCondition.TIME_UP) {
                         int tie = plugin.getConfigManager().getPointsTimeUp();
                         total += tie;
-                        details.add("Spielausgang:  Unentschieden -> " + tie);
-                        if (roundStats.hasSurvived(uuid)) {
+                        details.add(ChatColor.GRAY + "Spielausgang: "
+                                + ChatColor.YELLOW + "Unentschieden -> " + tie);
+
+                        if (survived) {
                             total += plugin.getConfigManager().getPointsSurvive();
-                            details.add("Überlebt: ja -> " + plugin.getConfigManager().getPointsSurvive());
+                            details.add(ChatColor.GRAY + "Überlebt: "
+                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
                         } else {
-                            details.add("Überlebt: nein");
+                            details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
                     }
                 }
@@ -152,13 +175,13 @@ public class RoundResultManager {
             // --- Nachricht an Spieler ---
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                p.sendMessage("§e===== Deine Runde =====");
-                p.sendMessage("§7Rolle: " + role);
-                for (String d : details) p.sendMessage("§7" + d);
-                p.sendMessage("§7Rundenpunkte: §b" + total);
+                p.sendMessage(ChatColor.YELLOW + "===== Deine Runde ========");
+                p.sendMessage(ChatColor.GRAY + "Rolle: " + ChatColor.AQUA + role);
+                for (String d : details) p.sendMessage(d);
+                p.sendMessage(ChatColor.GRAY + "Rundenpunkte: " + ChatColor.AQUA + total);
                 int newTotal = pointsManager.getPoints(uuid) + total;
-                p.sendMessage("§7Neuer Punktestand: §a" + newTotal);
-                p.sendMessage("§e=====================");
+                p.sendMessage(ChatColor.GRAY + "Neuer Punktestand: " + ChatColor.GREEN + newTotal);
+                p.sendMessage(ChatColor.YELLOW + "========================");
             }
         }
 
@@ -167,13 +190,37 @@ public class RoundResultManager {
             pointsManager.addPointsToPlayer(uuid, roundPoints.get(uuid));
         }
 
-        // --- Detaillierte Gesamtübersicht ---
-        Map<UUID, String> nameCache = new HashMap<>();
-        for (UUID id : roles.keySet()) {
+        // --- Rundenstatistik ---
+        List<UUID> sorted = new ArrayList<>(roundPoints.keySet());
+        sorted.sort((a, b) -> roundPoints.get(b) - roundPoints.get(a));
+
+        Bukkit.broadcastMessage("§6===== Rundenstatistik =====");
+
+        for (UUID id : sorted) {
             String name = Bukkit.getOfflinePlayer(id).getName();
-            if (name != null) nameCache.put(id, name);
+            if (name == null) name = id.toString();
+
+            int pts = roundPoints.get(id);
+
+            ChatColor color;
+            if (condition == EndCondition.TIME_UP) {
+                color = ChatColor.YELLOW;
+            } else {
+                boolean winner = false;
+                Role role = roles.get(id);
+                if (role != null) {
+                    winner = switch (condition) {
+                        case MURDERER_WIN -> role == Role.MURDERER;
+                        case DETECTIVE_WIN -> role == Role.DETECTIVE || role == Role.BYSTANDER;
+                        case TIME_UP -> false;
+                    };
+                }
+                color = winner ? ChatColor.GREEN : ChatColor.RED;
+            }
+
+            Bukkit.broadcastMessage(color + "• " + name + " | " + pts + " Punkte");
         }
 
-        Bukkit.broadcastMessage(roundStats.formatSummary(nameCache, roles));
+        Bukkit.broadcastMessage("§6========================");
     }
 }

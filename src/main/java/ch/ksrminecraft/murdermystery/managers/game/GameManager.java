@@ -1,10 +1,12 @@
 package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.listeners.SignListener;
 import ch.ksrminecraft.murdermystery.managers.effects.Broadcaster;
 import ch.ksrminecraft.murdermystery.managers.effects.CelebrationManager;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.support.*;
+import ch.ksrminecraft.murdermystery.model.Arena;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
@@ -114,6 +116,16 @@ public class GameManager {
 
         roundStats = new RoundStats();
 
+        // Chat bei allen Spielern leeren
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                for (int i = 0; i < 100; i++) {
+                    p.sendMessage("");
+                }
+            }
+        }
+
         playerManager.startGame(players, roles, chosenArenaSize);
         chosenArenaSize = null;
 
@@ -124,7 +136,12 @@ public class GameManager {
             }
         }
 
+        // BossBar für alle Spieler der Runde starten
+        bossBarManager.startGameTimer(configManager.getMaxGameSeconds());
+
+        // Timer, der die Zeit herunterzählt und BossBar aktualisiert
         gameTimerManager.start(configManager.getMaxGameSeconds());
+
         failSafeManager.start();
     }
 
@@ -164,9 +181,11 @@ public class GameManager {
                         celebrationManager.launchFireworks(p);
                     }
                 }
+
+                // Reset erst NACH dem Feuerwerk
+                Bukkit.getScheduler().runTaskLater(plugin, this::resetGame, 100L); // 5 Sekunden später
             }, 40L);
         }
-        resetGame();
     }
 
     public void handleTimeout() {
@@ -175,6 +194,24 @@ public class GameManager {
 
     public void resetGame() {
         gameStarted = false;
+
+        // BossBars aufräumen
+        bossBarManager.cancelGameBar();
+        bossBarManager.cancelLobbyBar();
+
+        // Alle Spieler zurücksetzen (Inventar, Teleport in Main-World, Cleanup)
+        Set<UUID> all = new HashSet<>();
+        all.addAll(players);
+        all.addAll(spectators);
+        playerManager.resetGame(all);
+
+        // --- NEU: Items in allen Arenen entfernen ---
+        for (Arena arena : arenaManager.getAllArenas()) {
+            arena.getWorld().getEntities().stream()
+                    .filter(e -> e instanceof org.bukkit.entity.Item)
+                    .forEach(e -> e.remove());
+            plugin.debug("Alle gedroppten Items in Arena '" + arena.getName() + "' entfernt.");
+        }
 
         // Sets und Rollen zurücksetzen
         players.clear();
@@ -187,8 +224,11 @@ public class GameManager {
         failSafeManager.stop();
         roundStats = null;
 
+        // Join-Signs aktualisieren
+        SignListener.updateJoinSigns(plugin);
+
         plugin.setMurdererKilledByBow(false);
-        plugin.debug("resetGame() abgeschlossen → Spieler, Items & Rollen aufgeräumt.");
+        plugin.debug("resetGame() abgeschlossen → Spieler, Items, Rollen & BossBars aufgeräumt.");
     }
 
     // ----------------- Hilfsmethoden -----------------
@@ -253,5 +293,10 @@ public class GameManager {
     }
     public boolean didDetectiveKillInnocent(UUID detective) {
         return roundStats != null && roundStats.getDetectiveInnocentKills(detective) > 0;
+    }
+
+    // NEU hinzugefügt:
+    public GameTimerManager getGameTimerManager() {
+        return gameTimerManager;
     }
 }

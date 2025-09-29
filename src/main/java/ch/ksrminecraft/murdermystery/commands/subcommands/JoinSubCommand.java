@@ -44,6 +44,12 @@ public class JoinSubCommand implements SubCommand {
             return;
         }
 
+        // Blockiere Join während laufendem Spiel
+        if (gameManager.isGameStarted()) {
+            player.sendMessage(ChatColor.RED + "Das Spiel läuft gerade. Bitte warte bis zur nächsten Runde!");
+            return;
+        }
+
         String size = null;
         if (args.length > 1) {
             String arg = args[1].toLowerCase();

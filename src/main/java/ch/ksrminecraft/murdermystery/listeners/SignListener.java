@@ -3,8 +3,9 @@ package ch.ksrminecraft.murdermystery.listeners;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
+import org.bukkit.Chunk;
+import org.bukkit.World;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,13 +15,9 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
-import java.util.HashSet;
-import java.util.Set;
-
 public class SignListener implements Listener {
 
     private final MurderMystery plugin;
-    private static final Set<Location> joinSigns = new HashSet<>();
 
     public SignListener(MurderMystery plugin) {
         this.plugin = plugin;
@@ -45,7 +42,6 @@ public class SignListener implements Listener {
             event.setLine(2, ChatColor.YELLOW + "0 von mind. " + minPlayers);
             event.setLine(3, ChatColor.GRAY + "Wartelobby");
 
-            joinSigns.add(event.getBlock().getLocation());
             player.sendMessage(ChatColor.AQUA + "MurderMystery-Join-Schild (" + size + ") erstellt!");
         }
     }
@@ -61,7 +57,6 @@ public class SignListener implements Listener {
 
         Player player = event.getPlayer();
 
-        if (player.hasPermission("murdermystery.admin") && player.getGameMode() == GameMode.CREATIVE) return;
         if (plugin.getGameManager().isGameStarted()) {
             player.sendMessage(ChatColor.RED + "Das Spiel läuft gerade. Bitte warten!");
             return;
@@ -83,8 +78,7 @@ public class SignListener implements Listener {
         String firstLine = ChatColor.stripColor(((Sign) event.getBlock().getState()).getLine(0)).trim();
 
         if (firstLine.equalsIgnoreCase("[MurderMystery]")) {
-            if (player.hasPermission("murdermystery.admin") && player.getGameMode() == GameMode.CREATIVE) {
-                joinSigns.remove(event.getBlock().getLocation());
+            if (player.hasPermission("murdermystery.admin") && player.getGameMode().toString().equalsIgnoreCase("CREATIVE")) {
                 player.sendMessage(ChatColor.AQUA + "MurderMystery-Schild entfernt.");
                 return;
             }
@@ -98,19 +92,30 @@ public class SignListener implements Listener {
         int min = plugin.getConfigManager().getMinPlayers();
         boolean gameRunning = plugin.getGameManager().isGameStarted();
 
-        for (Location loc : joinSigns) {
-            if (loc.getBlock().getState() instanceof Sign sign) {
-                if (gameRunning) {
-                    sign.setLine(1, ChatColor.RED + "Spiel läuft");
-                    sign.setLine(2, ChatColor.YELLOW + "Bitte warten");
-                    sign.setLine(3, "");
-                } else {
+        for (World world : Bukkit.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                for (BlockState state : chunk.getTileEntities()) {
+                    if (!(state instanceof Sign sign)) continue;
+
+                    String firstLine = ChatColor.stripColor(sign.getLine(0)).trim();
+                    if (!firstLine.equalsIgnoreCase("[MurderMystery]")) continue;
+
                     String size = ChatColor.stripColor(sign.getLine(1)).toLowerCase();
+                    sign.setLine(0, ChatColor.DARK_RED + "[MurderMystery]");
                     sign.setLine(1, ChatColor.GREEN + size);
-                    sign.setLine(2, ChatColor.YELLOW + "" + current + " von mind. " + min);
-                    sign.setLine(3, (current >= min ? ChatColor.GREEN + "Startbereit" : ChatColor.GRAY + "Wartelobby"));
+
+                    if (gameRunning) {
+                        int secondsLeft = plugin.getGameManager().getGameTimerManager().getRemainingSeconds();
+                        int minutes = secondsLeft / 60;
+                        int seconds = secondsLeft % 60;
+                        sign.setLine(2, ChatColor.RED + String.format("Läuft: %02d:%02d", minutes, seconds));
+                        sign.setLine(3, ChatColor.YELLOW + "Bitte warten");
+                    } else {
+                        sign.setLine(2, ChatColor.YELLOW + "" + current + " von mind. " + min);
+                        sign.setLine(3, (current >= min ? ChatColor.GREEN + "Startbereit" : ChatColor.GRAY + "Wartelobby"));
+                    }
+                    sign.update();
                 }
-                sign.update();
             }
         }
     }

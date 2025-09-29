@@ -2,8 +2,8 @@ package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
-import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
+import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -15,6 +15,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.ItemStack;
@@ -37,27 +38,19 @@ public class SpecialItemListener implements Listener {
 
         // Detective-Bogen
         if (ItemManager.isDetectiveBow(drop)) {
-            if (plugin.getArenaManager().getArenaForWorld(player.getWorld()) == null) {
-                event.getItemDrop().remove();
-                plugin.debug("Detective-Bogen ausserhalb von Arenen entfernt (Welt=" + player.getWorld().getName() + ")");
-                return;
-            }
             event.setCancelled(true);
             MessageLimiter.sendPlayerMessage(player, "bow-drop",
                     "§cDu darfst den Detective-Bogen nicht fallen lassen!");
+            plugin.debug("Drop von Detective-Bogen durch " + player.getName() + " verhindert.");
             return;
         }
 
         // Murderer-Schwert
         if (ItemManager.isMurdererSword(drop)) {
-            if (plugin.getArenaManager().getArenaForWorld(player.getWorld()) == null) {
-                event.getItemDrop().remove();
-                plugin.debug("Murderer-Schwert außerhalb von Arenen entfernt (Welt=" + player.getWorld().getName() + ")");
-                return;
-            }
             event.setCancelled(true);
             MessageLimiter.sendPlayerMessage(player, "sword-drop",
                     "§cDu darfst das Murderer-Schwert nicht fallen lassen!");
+            plugin.debug("Drop von Murderer-Schwert durch " + player.getName() + " verhindert.");
             return;
         }
 
@@ -68,6 +61,7 @@ public class SpecialItemListener implements Listener {
                 event.setCancelled(true);
                 MessageLimiter.sendPlayerMessage(player, "arrow-drop",
                         "§cAls Detective darfst du deine Pfeile nicht droppen!");
+                plugin.debug("Drop von Pfeilen durch Detective " + player.getName() + " verhindert.");
             }
         }
     }
@@ -77,26 +71,66 @@ public class SpecialItemListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack stack = event.getItem().getItemStack();
-
         UUID uuid = player.getUniqueId();
-        Role currentRole = RoleManager.getRole(uuid);
 
-        // 🔪 Murderer-Schwert nur für Mörder
-        if (ItemManager.isMurdererSword(stack)) {
-            if (currentRole != Role.MURDERER) {
+        // Safety: außerhalb von Arenen → Item sofort löschen
+        if (plugin.getArenaManager().getArenaForWorld(player.getWorld()) == null) {
+            if (ItemManager.isDetectiveBow(stack) || ItemManager.isMurdererSword(stack) || stack.getType() == Material.ARROW) {
                 event.setCancelled(true);
-                player.sendMessage("§cNur der Mörder darf das Schwert aufnehmen!");
-                plugin.debug("Pickup von Murderer-Schwert durch " + player.getName() + " blockiert.");
+                event.getItem().remove();
+                plugin.debug("Failsafe: Spezialitem außerhalb Arena entfernt (Pickup durch " + player.getName() + ")");
             }
             return;
         }
 
-        // 🏹 Detective-Bogen → Rolle wechseln
+        Role currentRole = RoleManager.getRole(uuid);
+        if (currentRole == null) {
+            plugin.debug("Pickup-Check: Spieler " + player.getName() + " hat keine Rolle → blockiert.");
+            event.setCancelled(true);
+            return;
+        }
+
+        // 🔪 Murderer-Schwert
+        if (ItemManager.isMurdererSword(stack)) {
+            if (currentRole != Role.MURDERER) {
+                event.setCancelled(true);
+                MessageLimiter.sendPlayerMessage(player, "sword-pickup",
+                        "§cNur der Mörder darf das Schwert aufnehmen!");
+                plugin.debug("Pickup von Murderer-Schwert durch " + player.getName() + " blockiert (Rolle=" + currentRole + ")");
+            }
+            return;
+        }
+
+        // 🏹 Detective-Bogen
         if (ItemManager.isDetectiveBow(stack)) {
             if (currentRole == Role.BYSTANDER) {
+                // Rolle wechseln
                 RoleManager.setRole(uuid, Role.DETECTIVE);
-                player.sendMessage(ChatColor.BLUE + "🔎 Du bist jetzt Detective!");
-                plugin.debug("Spieler " + player.getName() + " hat den Detective-Bogen aufgenommen und ist jetzt Detective.");
+                MessageLimiter.sendPlayerMessage(player, "bow-pickup",
+                        ChatColor.BLUE + "🔎 Du bist jetzt Detective!");
+                plugin.debug("Bystander " + player.getName() + " wurde zum Detective (Bogen aufgenommen).");
+
+                // Sicherstellen, dass er mindestens 1 Pfeil hat
+                if (!player.getInventory().contains(Material.ARROW)) {
+                    player.getInventory().addItem(new ItemStack(Material.ARROW, 1));
+                    plugin.debug("Neuer Detective " + player.getName() + " hat automatisch einen Pfeil erhalten.");
+                }
+            } else {
+                event.setCancelled(true);
+                MessageLimiter.sendPlayerMessage(player, "bow-deny",
+                        ChatColor.RED + "❌ Als " + currentRole + " darfst du den Bogen nicht aufnehmen!");
+                plugin.debug("Pickup von Detective-Bogen durch " + player.getName() + " blockiert (Rolle=" + currentRole + ")");
+            }
+            return;
+        }
+
+        // 🏹 Pfeile
+        if (stack.getType() == Material.ARROW) {
+            if (currentRole != Role.DETECTIVE) {
+                event.setCancelled(true);
+                MessageLimiter.sendPlayerMessage(player, "arrow-pickup",
+                        "§cNur Detectives dürfen Pfeile aufheben!");
+                plugin.debug("Pickup von Pfeilen durch " + player.getName() + " blockiert (Rolle=" + currentRole + ")");
             }
         }
     }
@@ -105,7 +139,15 @@ public class SpecialItemListener implements Listener {
     @EventHandler
     public void onDespawn(ItemDespawnEvent event) {
         Item item = event.getEntity();
-        if (!plugin.getGameManager().isGameStarted()) return;
+
+        // Safety: nur in Arenen schützen
+        if (plugin.getArenaManager().getArenaForWorld(item.getWorld()) == null) {
+            if (ItemManager.isDetectiveBow(item.getItemStack()) || ItemManager.isMurdererSword(item.getItemStack())) {
+                item.remove();
+                plugin.debug("Failsafe: Spezialitem außerhalb Arena despawned und entfernt.");
+            }
+            return;
+        }
 
         if (ItemManager.isDetectiveBow(item.getItemStack()) || ItemManager.isMurdererSword(item.getItemStack())) {
             event.setCancelled(true);
@@ -152,6 +194,19 @@ public class SpecialItemListener implements Listener {
                         "§cDu darfst dein Inventar nicht leeren, solange du Spezialitems besitzt!");
                 plugin.debug("Befehl /clear von " + p.getName() + " blockiert (Spezialitem im Inventar).");
             }
+        }
+    }
+
+    // ---------- Weltwechsel-Failsafe ----------
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+
+        if (plugin.getArenaManager().getArenaForWorld(player.getWorld()) == null) {
+            // Spieler ist in Lobby/Main → Inventar sofort säubern
+            ItemManager.clearSpecialItems(player);
+            plugin.debug("Failsafe: Spezialitems bei " + player.getName() +
+                    " nach Weltwechsel entfernt (Welt=" + player.getWorld().getName() + ")");
         }
     }
 }
