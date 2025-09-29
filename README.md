@@ -18,14 +18,14 @@ Das Plugin ist speziell für Servernetzwerke mit **RankPointsAPI-Integration** e
     - Feste Spawnpunkte (`/mm setspawn`) oder dynamische Safe-Spawns per Region
     - Automatische Teleports zwischen Lobby, Arenen und Main-Welt
 - **Lobby-System**
-    - Join-Schilder mit Größenwahl (small/mid/large)
-    - Schilder blockieren automatisch andere Größen, sobald ein Spieler eine Runde startet
+    - Join-Schilder mit Grössenwahl (small/mid/large)
+    - Schilder blockieren automatisch andere Grössen, sobald ein Spieler eine Runde startet
     - Lobby ist wie Arenen vor Interaktionen/Abbau geschützt
 - **Punkte-System** (RankPointsAPI)
     - Dynamische Punktevergabe: Kills, Überleben, Sieg, Niederlage, Quit-Strafen
     - Konfigurierbare Werte in `config.yml`
     - Transparente Anzeige der Punkte am Rundenende im Chat
-- **Große Titel-Anzeigen**
+- **Grosse Titel-Anzeigen**
     - Kill-Meldungen sofort als Titel für alle
     - Runde-Ende: Gewinner & Verlierer mit fetter Anzeige
 - **Anti-Cheat Schutz**
@@ -191,5 +191,8 @@ player-gamemode: adventure
 
 ## 🏆 Credits
 
-Basierend auf eigenen Entwicklungen & inspiriert von Community-Projekten.  
-RankPointsAPI: https://github.com/Catmaster420  
+Basierend auf eigenen Entwicklungen & inspiriert von Community-Projekten.
+
+Credis to: https://github.com/Catmaster420
+
+RankPointsAPI: https://github.com/timylinigersluz/RankPointsProxy
