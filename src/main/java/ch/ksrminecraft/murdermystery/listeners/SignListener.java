@@ -63,11 +63,30 @@ public class SignListener implements Listener {
         }
 
         String arenaSize = ChatColor.stripColor(sign.getLine(1)).trim().toLowerCase();
-        if (arenaSize.equals("small") || arenaSize.equals("mid") || arenaSize.equals("large")) {
-            Bukkit.dispatchCommand(player, "mm join " + arenaSize);
-        } else {
-            Bukkit.dispatchCommand(player, "mm join");
+        if (!(arenaSize.equals("small") || arenaSize.equals("mid") || arenaSize.equals("large"))) {
+            player.sendMessage(ChatColor.RED + "Ungültige Arenagröße am Schild!");
+            return;
         }
+
+        // --- Blockier-Logik ---
+        String chosen = plugin.getGameManager().getChosenArenaSize();
+        if (chosen != null && !chosen.equalsIgnoreCase(arenaSize)) {
+            player.sendMessage(ChatColor.RED + "Diese Runde ist bereits auf " + chosen + " festgelegt!");
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f); // 👈 Villager "no"
+            return;
+        }
+
+        // Falls noch nichts gesetzt → jetzt fixieren
+        if (chosen == null) {
+            plugin.getGameManager().setChosenArenaSize(arenaSize);
+            Bukkit.broadcastMessage(ChatColor.AQUA + player.getName() +
+                    ChatColor.GRAY + " hat die Runde gestartet mit Größe " +
+                    ChatColor.GOLD + arenaSize);
+            updateJoinSigns(plugin); // andere Schilder schließen
+        }
+
+        // Spieler joinen lassen
+        Bukkit.dispatchCommand(player, "mm join " + arenaSize);
     }
 
     @EventHandler
@@ -78,7 +97,8 @@ public class SignListener implements Listener {
         String firstLine = ChatColor.stripColor(((Sign) event.getBlock().getState()).getLine(0)).trim();
 
         if (firstLine.equalsIgnoreCase("[MurderMystery]")) {
-            if (player.hasPermission("murdermystery.admin") && player.getGameMode().toString().equalsIgnoreCase("CREATIVE")) {
+            if (player.hasPermission("murdermystery.admin") &&
+                    player.getGameMode().toString().equalsIgnoreCase("CREATIVE")) {
                 player.sendMessage(ChatColor.AQUA + "MurderMystery-Schild entfernt.");
                 return;
             }
@@ -91,6 +111,7 @@ public class SignListener implements Listener {
         int current = plugin.getGameManager().getPlayers().size();
         int min = plugin.getConfigManager().getMinPlayers();
         boolean gameRunning = plugin.getGameManager().isGameStarted();
+        String chosen = plugin.getGameManager().getChosenArenaSize();
 
         for (World world : Bukkit.getWorlds()) {
             for (Chunk chunk : world.getLoadedChunks()) {
@@ -101,7 +122,39 @@ public class SignListener implements Listener {
                     if (!firstLine.equalsIgnoreCase("[MurderMystery]")) continue;
 
                     String size = ChatColor.stripColor(sign.getLine(1)).toLowerCase();
+
+                    // Zeile 0 bleibt IMMER gleich
                     sign.setLine(0, ChatColor.DARK_RED + "[MurderMystery]");
+
+                    // --- Blockierte Schilder ---
+                    if (chosen != null && !chosen.equalsIgnoreCase(size)) {
+                        sign.setLine(1, ChatColor.RED + size);
+                        sign.setLine(2, ChatColor.DARK_RED + "GESCHLOSSEN");
+                        sign.setLine(3, ChatColor.GRAY + "Nur " + chosen);
+                        sign.update();
+                        continue;
+                    }
+
+                    // --- Reset-Anzeige (kurz nach Spielende) ---
+                    if (chosen == null && !gameRunning && plugin.getGameManager().wasJustReset()) {
+                        sign.setLine(1, ChatColor.GREEN + size);
+                        sign.setLine(2, ChatColor.YELLOW + "RESET");
+                        sign.setLine(3, ChatColor.GRAY + "Alle Größen frei");
+                        sign.update();
+
+                        // Nach 2 Sekunden zurück zur Lobby-Anzeige
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                            sign.setLine(1, ChatColor.GREEN + size);
+                            sign.setLine(2, ChatColor.YELLOW + "" + current + " von mind. " + min);
+                            sign.setLine(3, (current >= min
+                                    ? ChatColor.GREEN + "Startbereit"
+                                    : ChatColor.GRAY + "Wartelobby"));
+                            sign.update();
+                        }, 40L);
+                        continue;
+                    }
+
+                    // --- Normale Anzeige (Lobby oder Spiel) ---
                     sign.setLine(1, ChatColor.GREEN + size);
 
                     if (gameRunning) {
@@ -119,4 +172,5 @@ public class SignListener implements Listener {
             }
         }
     }
+
 }

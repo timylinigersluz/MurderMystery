@@ -6,6 +6,7 @@ import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.managers.game.PointsManager;
+import ch.ksrminecraft.murdermystery.managers.support.MapManager;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -21,6 +22,7 @@ public class MurderMystery extends JavaPlugin {
     private PointsManager pointsManager;
     private ArenaManager arenaManager;
     private ConfigManager configManager;
+    private MapManager mapManager;
 
     private boolean debugEnabled;
     private boolean murdererKilledByBow = false;
@@ -34,9 +36,17 @@ public class MurderMystery extends JavaPlugin {
         this.debugEnabled = configManager.isDebug();
         getLogger().info("Debug-Modus: " + (debugEnabled ? "AKTIVIERT" : "deaktiviert"));
 
+        // === RankPointsAPI prüfen ===
+        if (getServer().getPluginManager().getPlugin("RankPointsAPI") == null) {
+            getLogger().severe("RankPointsAPI Plugin nicht gefunden! MurderMystery wird deaktiviert.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
         // === Manager initialisieren ===
         this.arenaManager = new ArenaManager(this, configManager);
         this.pointsManager = new PointsManager(getLogger(), this);
+        this.mapManager = new MapManager(this, arenaManager);
         this.gameManager = new GameManager(pointsManager, arenaManager, this, configManager);
         gameManager.setMinPlayers(configManager.getMinPlayers());
         gameManager.setCountdownTime(configManager.getCountdownSeconds());
@@ -46,7 +56,7 @@ public class MurderMystery extends JavaPlugin {
         MessageLimiter.init(this);
 
         // === Listener registrieren ===
-        getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManager, configManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManager, configManager, mapManager), this);
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(gameManager, configManager), this);
         getServer().getPluginManager().registerEvents(new SignListener(this), this);
         getServer().getPluginManager().registerEvents(new DeathMessageListener(this), this);
@@ -56,11 +66,12 @@ public class MurderMystery extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BowListener(this), this);
         getServer().getPluginManager().registerEvents(new SpecialItemListener(this), this);
         getServer().getPluginManager().registerEvents(new AdvancementBlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new CommandBlockerListener(this), this);
 
         debug("Alle Listener erfolgreich registriert.");
 
         // === Command-Registrierung ===
-        MurderMysteryCommand mmCommand = new MurderMysteryCommand(gameManager, configManager);
+        MurderMysteryCommand mmCommand = new MurderMysteryCommand(this, gameManager, configManager);
         getServer().getCommandMap().register("mm", new Command("mm") {
             @Override
             public boolean execute(@NotNull CommandSender sender,
@@ -76,11 +87,6 @@ public class MurderMystery extends JavaPlugin {
                 return mmCommand.onTabComplete(sender, this, alias, args);
             }
         });
-
-        // RankPointsAPI Check
-        if (getServer().getPluginManager().getPlugin("RankPointsAPI") == null) {
-            getLogger().severe("RankPointsAPI Plugin nicht gefunden! Punkteverteilung nicht möglich.");
-        }
 
         debug("MurderMystery Plugin erfolgreich aktiviert.");
     }

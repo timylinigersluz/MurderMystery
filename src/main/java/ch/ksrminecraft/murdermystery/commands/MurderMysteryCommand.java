@@ -1,8 +1,10 @@
 package ch.ksrminecraft.murdermystery.commands;
 
+import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.commands.subcommands.*;
 import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.model.Arena;
 import org.bukkit.ChatColor;
 import org.bukkit.command.*;
 import org.jetbrains.annotations.NotNull;
@@ -13,9 +15,12 @@ import java.util.List;
 
 public class MurderMysteryCommand implements CommandExecutor, TabCompleter {
 
+    private final MurderMystery plugin;
     private final List<SubCommand> subCommands = new ArrayList<>();
 
-    public MurderMysteryCommand(GameManager gameManager, ConfigManager configManager) {
+    public MurderMysteryCommand(MurderMystery plugin, GameManager gameManager, ConfigManager configManager) {
+        this.plugin = plugin; //
+
         subCommands.add(new JoinSubCommand(gameManager));
         subCommands.add(new LeaveSubCommand(gameManager));
         subCommands.add(new HelpSubCommand(subCommands));
@@ -23,9 +28,8 @@ public class MurderMysteryCommand implements CommandExecutor, TabCompleter {
         subCommands.add(new GamemodeSubCommand(gameManager, configManager));
         subCommands.add(new StopSubCommand(gameManager));
         subCommands.add(new ReloadSubCommand(configManager, gameManager));
-        subCommands.add(new SetSpawnSubCommand(
-                ch.ksrminecraft.murdermystery.MurderMystery.getInstance().getArenaManager(),
-                configManager));
+        subCommands.add(new SetSpawnSubCommand(plugin.getArenaManager(), configManager));
+        subCommands.add(new ResetSubCommand(plugin, gameManager));
     }
 
     @Override
@@ -60,6 +64,10 @@ public class MurderMysteryCommand implements CommandExecutor, TabCompleter {
             for (SubCommand sub : subCommands) {
                 suggestions.add(sub.getName());
             }
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("setspawn")) {
+            suggestions.add("lobby");
+            suggestions.addAll(plugin.getArenaManager().getAllArenas()
+                    .stream().map(Arena::getName).toList());
         }
         return suggestions;
     }

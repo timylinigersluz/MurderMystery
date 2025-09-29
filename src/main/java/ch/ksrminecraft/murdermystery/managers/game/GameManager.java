@@ -37,6 +37,7 @@ public class GameManager {
     private final Set<UUID> spectators = new HashSet<>();  // ausgeschiedene Spieler
     private final Map<UUID, Role> roles = new HashMap<>();
     private boolean gameStarted = false;
+    private boolean justReset = false;
 
     private int minPlayers;
     private int countdownTime;
@@ -209,6 +210,7 @@ public class GameManager {
 
     public void resetGame() {
         gameStarted = false;
+        justReset = true;
 
         // BossBars aufräumen
         bossBarManager.cancelGameBar();
@@ -238,6 +240,9 @@ public class GameManager {
         gameTimerManager.stop();
         failSafeManager.stop();
         roundStats = null;
+
+        // Arena-Grösse zurücksetzen
+        chosenArenaSize = null;
 
         // Join-Signs aktualisieren
         SignListener.updateJoinSigns(plugin);
@@ -315,5 +320,26 @@ public class GameManager {
     }
     public PointsManager getPointsManager() {
         return pointsManager;
+    }
+
+    public PlayerManager getPlayerManager() {
+        return playerManager;
+    }
+
+    public String getChosenArenaSize() {
+        return chosenArenaSize;
+    }
+
+    public void setChosenArenaSize(String size) {
+        this.chosenArenaSize = size;
+        plugin.debug("Arena-Größe gewählt: " + size);
+    }
+
+    public boolean wasJustReset() {
+        if (justReset) {
+            justReset = false; // einmalig verbrauchen
+            return true;
+        }
+        return false;
     }
 }

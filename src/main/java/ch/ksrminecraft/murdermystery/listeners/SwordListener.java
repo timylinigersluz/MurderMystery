@@ -35,13 +35,13 @@ public class SwordListener implements Listener {
             // Kein echter Schaden → nur eliminate triggern
             event.setDamage(0);
 
-            // zentrale Logik im PlayerManager
-            plugin.getGameManager().eliminate(victim, attacker);
-
-            // Broadcast + Debug
+            // Broadcast + Debug jetzt VOR eliminate()
             MessageLimiter.sendBroadcast("murderer-kill",
-                    ChatColor.DARK_RED + "Der Mörder hat einen Spieler getötet!");
+                    ChatColor.DARK_RED + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet!");
             plugin.debug("Murderer " + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet.");
+
+            // eliminate erst NACH der Meldung
+            plugin.getGameManager().eliminate(victim, attacker);
         }
     }
 }

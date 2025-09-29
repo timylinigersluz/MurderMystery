@@ -4,8 +4,6 @@ import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
 import ch.ksrminecraft.murdermystery.model.Arena;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -28,12 +26,12 @@ public class SetSpawnSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Fügt einen Spawnpunkt in einer Arena hinzu.";
+        return "Fügt einen Spawnpunkt in einer Arena oder der Lobby hinzu.";
     }
 
     @Override
     public String getUsage() {
-        return "/mm setspawn <arena>";
+        return "/mm setspawn <arena|lobby>";
     }
 
     @Override
@@ -52,35 +50,65 @@ public class SetSpawnSubCommand implements SubCommand {
             return;
         }
 
-        String arenaName = args[1].toLowerCase();
-        Arena arena = arenaManager.getArena(arenaName);
+        String target = args[1].toLowerCase();
+
+        // --- Lobby ---
+        if (target.equals("lobby")) {
+            if (!player.getWorld().getName().equalsIgnoreCase(configManager.getLobbyWorld())) {
+                player.sendMessage(ChatColor.RED + "Du musst dich in der Lobby-Welt befinden ("
+                        + configManager.getLobbyWorld() + ")!");
+                return;
+            }
+
+            String entry = player.getLocation().getBlockX() + "," +
+                    player.getLocation().getBlockY() + "," +
+                    player.getLocation().getBlockZ();
+
+            List<String> spawns = configManager.getLobbySpawns();
+            spawns.add(entry);
+            configManager.setLobbySpawns(spawns);
+
+            player.sendMessage(ChatColor.GREEN + "Spawnpunkt in der Lobby hinzugefügt!");
+            player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Lobby-Spawns: " + spawns.size());
+            configManager.debug("SetSpawn: Neuer Lobby-Spawn bei " + entry);
+            return;
+        }
+
+        // --- Arena ---
+        Arena arena = arenaManager.getArena(target);
         if (arena == null) {
-            player.sendMessage(ChatColor.RED + "Arena '" + arenaName + "' existiert nicht!");
+            player.sendMessage(ChatColor.RED + "Arena '" + target + "' existiert nicht!");
             return;
         }
 
-        Location loc = player.getLocation();
-        World arenaWorld = arena.getWorld();
-        if (arenaWorld == null || !arenaWorld.equals(loc.getWorld())) {
-            player.sendMessage(ChatColor.RED + "Du musst dich in der Welt der Arena befinden!");
+        // Sicherstellen, dass Arena überhaupt eine Welt hat
+        if (arena.getWorld() == null) {
+            player.sendMessage(ChatColor.RED + "Arena '" + target + "' hat keine gültige Welt in der Config!");
             return;
         }
 
-        // Koordinaten speichern
-        String entry = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+        // Vergleich über den Welt-Namen statt World-Objekt
+        String playerWorld = player.getWorld().getName();
+        String arenaWorld = arena.getWorld().getName();
+        if (!arenaWorld.equalsIgnoreCase(playerWorld)) {
+            player.sendMessage(ChatColor.RED + "Du musst dich in der Welt '" + arenaWorld
+                    + "' befinden (aktuell: " + playerWorld + ")!");
+            return;
+        }
 
-        List<String> spawns = configManager.getArenaSpawns(arenaName);
+        String entry = player.getLocation().getBlockX() + "," +
+                player.getLocation().getBlockY() + "," +
+                player.getLocation().getBlockZ();
+
+        List<String> spawns = configManager.getArenaSpawns(target);
         spawns.add(entry);
-        configManager.setArenaSpawns(arenaName, spawns);
+        configManager.setArenaSpawns(target, spawns);
 
-        // Arenen neu laden
         arenaManager.reload();
 
-        int totalSpawns = arenaManager.getArena(arenaName).getSpawnPoints().size();
-
-        player.sendMessage(ChatColor.GREEN + "Spawnpunkt hinzugefügt in Arena '" + arenaName + "'.");
-        player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Spawns: " + totalSpawns);
-
-        configManager.debug("SetSpawn: Neuer Spawn in Arena '" + arenaName + "' bei " + entry);
+        player.sendMessage(ChatColor.GREEN + "Spawnpunkt hinzugefügt in Arena '" + target + "'.");
+        player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Spawns: " +
+                arenaManager.getArena(target).getSpawnPoints().size());
+        configManager.debug("SetSpawn: Neuer Spawn in Arena '" + target + "' bei " + entry);
     }
 }

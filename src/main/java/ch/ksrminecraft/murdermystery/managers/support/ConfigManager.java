@@ -152,6 +152,17 @@ public class ConfigManager {
         if (debug) plugin.getLogger().info("[DEBUG] " + msg);
     }
 
+    // --- Lobby-Spawns ---
+    public List<String> getLobbySpawns() {
+        return config.getStringList("lobby-spawns");
+    }
+
+    public void setLobbySpawns(List<String> spawns) {
+        config.set("lobby-spawns", spawns);
+        save();
+        reload();
+    }
+
     // --- Arenen-Spawns ---
     public List<String> getArenaSpawns(String arenaName) {
         return config.getStringList("arenas." + arenaName + ".spawns");

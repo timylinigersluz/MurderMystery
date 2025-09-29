@@ -190,22 +190,6 @@ public class SpecialItemListener implements Listener {
         }
     }
 
-    // ---------- /clear blockieren ----------
-    @EventHandler
-    public void onCommand(PlayerCommandPreprocessEvent event) {
-        Player p = event.getPlayer();
-        String msg = event.getMessage().toLowerCase();
-
-        if (msg.startsWith("/clear") || msg.startsWith("/minecraft:clear")) {
-            if (p.getInventory().contains(ItemManager.createDetectiveBow().getType()) ||
-                    p.getInventory().contains(ItemManager.createMurdererSword().getType())) {
-                event.setCancelled(true);
-                MessageLimiter.sendPlayerMessage(p, "clear-block",
-                        "§cDu darfst dein Inventar nicht leeren, solange du Spezialitems besitzt!");
-                plugin.debug("Befehl /clear von " + p.getName() + " blockiert (Spezialitem im Inventar).");
-            }
-        }
-    }
 
     // ---------- Weltwechsel-Failsafe ----------
     @EventHandler

@@ -10,16 +10,11 @@ import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.managers.support.MapManager;
 import ch.ksrminecraft.murdermystery.model.Arena;
 import ch.ksrminecraft.murdermystery.model.Role;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class PlayerManager {
 
@@ -193,17 +188,35 @@ public class PlayerManager {
         plugin.debug("Spielstart mit " + players.size() + " Spielern.");
         roles.putAll(RoleManager.assignRoles(players));
 
-        Arena chosenArena = (arenaSize != null) ? arenaManager.getRandomArenaBySize(arenaSize) : arenaManager.getRandomArena();
+        Arena chosenArena = (arenaSize != null)
+                ? arenaManager.getRandomArenaBySize(arenaSize)
+                : arenaManager.getRandomArena();
         if (chosenArena == null) chosenArena = arenaManager.getRandomArena();
 
+        // --- Spawnpunkte prüfen ---
+        List<Location> spawnPoints = new ArrayList<>(chosenArena.getSpawnPoints());
+        if (spawnPoints.size() < players.size()) {
+            plugin.getLogger().severe("Zu wenige Spawnpunkte in Arena '" + chosenArena.getName() +
+                    "'! (" + spawnPoints.size() + " < " + players.size() + ")");
+            Bukkit.broadcastMessage(ChatColor.RED + "Arena hat zu wenige Spawnpunkte! Bitte Admin informieren.");
+            // Notfall → fallback: alle auf einen Random-Spawn
+            spawnPoints = Collections.nCopies(players.size(), chosenArena.getRandomSpawn());
+        } else {
+            Collections.shuffle(spawnPoints);
+        }
+
+        int i = 0;
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                p.teleport(chosenArena.getRandomSpawn());
-                plugin.debug("Spieler " + p.getName() + " → Arena '" + chosenArena.getName() + "'");
+                Location spawn = spawnPoints.get(i++);
+                p.teleport(spawn);
+                plugin.debug("Spieler " + p.getName() + " → Arena '" + chosenArena.getName()
+                        + "', Spawn=" + spawn.getBlockX() + "," + spawn.getBlockY() + "," + spawn.getBlockZ());
             }
         }
 
+        // Rollen zuweisen + Inventare
         for (Map.Entry<UUID, Role> entry : roles.entrySet()) {
             Player p = Bukkit.getPlayer(entry.getKey());
             if (p == null || !p.isOnline()) continue;
@@ -255,5 +268,9 @@ public class PlayerManager {
             default -> player.sendMessage(ChatColor.GOLD + "Du bist ein " + ChatColor.GREEN + "Unschuldiger");
         }
         player.sendMessage(ChatColor.GRAY + "=========================");
+    }
+
+    public MapManager getMapManager() {
+        return mapManager;
     }
 }

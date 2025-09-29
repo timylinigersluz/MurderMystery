@@ -127,4 +127,13 @@ public class ArenaManager {
     public Collection<Arena> getAllArenas() {
         return Collections.unmodifiableCollection(arenas.values());
     }
+
+    public Arena getArenaByWorld(World world) {
+        if (world == null) return null;
+        String worldName = world.getName();
+        return arenas.values().stream()
+                .filter(a -> a.getWorld().getName().equalsIgnoreCase(worldName))
+                .findFirst()
+                .orElse(null);
+    }
 }

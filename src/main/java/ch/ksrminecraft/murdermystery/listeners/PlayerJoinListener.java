@@ -4,6 +4,7 @@ import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
 import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.managers.support.MapManager;
 import ch.ksrminecraft.murdermystery.model.QuitTracker;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -19,11 +20,13 @@ public class PlayerJoinListener implements Listener {
     private final MurderMystery plugin;
     private final GameManager gameManager;
     private final ConfigManager configManager;
+    private final MapManager mapManager;
 
-    public PlayerJoinListener(GameManager gameManager, ConfigManager configManager) {
+    public PlayerJoinListener(GameManager gameManager, ConfigManager configManager, MapManager mapManager) {
         this.plugin = MurderMystery.getInstance();
         this.gameManager = gameManager;
         this.configManager = configManager;
+        this.mapManager = mapManager;
     }
 
     @EventHandler
@@ -49,15 +52,19 @@ public class PlayerJoinListener implements Listener {
 
         // Wenn kein Spiel läuft, aber Countdown schon aktiv → Lobby-BossBar anzeigen
         gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
+
+        // Spieler in die Lobby teleportieren (random spawn)
+        sendToLobby(p);
     }
 
     private void sendToLobby(Player p) {
         String lobbyWorldName = configManager.getLobbyWorld();
         World lobby = Bukkit.getWorld(lobbyWorldName);
         if (lobby != null) {
-            Location spawn = lobby.getSpawnLocation();
+            Location spawn = mapManager.getRandomLobbySpawn(lobby);
             p.teleport(spawn);
-            plugin.debug("Spieler " + p.getName() + " wurde in die Lobby teleportiert.");
+            plugin.debug("Spieler " + p.getName() + " wurde in die Lobby teleportiert → " +
+                    String.format("(%.1f, %.1f, %.1f)", spawn.getX(), spawn.getY(), spawn.getZ()));
         } else {
             plugin.getLogger().severe("Lobby-Welt '" + lobbyWorldName + "' nicht gefunden!");
         }

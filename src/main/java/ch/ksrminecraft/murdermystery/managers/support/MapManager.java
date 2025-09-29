@@ -7,6 +7,8 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,9 +46,31 @@ public class MapManager {
         teleportAll(players, "worlds.main", "Hauptwelt");
     }
 
-    /** Spieler in die Lobby teleportieren */
+    /** Spieler in die Lobby teleportieren (Random-Spawn mit Fallback) */
     public void teleportToLobby(Set<UUID> players) {
-        teleportAll(players, "worlds.lobby", "Lobby");
+        String worldName = plugin.getConfig().getString("worlds.lobby");
+        if (worldName == null || worldName.isBlank()) {
+            plugin.getLogger().severe("Fehler: 'worlds.lobby' ist in der Config nicht gesetzt!");
+            return;
+        }
+
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            plugin.getLogger().severe("Lobby-Welt '" + worldName + "' konnte nicht geladen werden!");
+            return;
+        }
+
+        Location targetSpawn = getRandomLobbySpawn(world);
+
+        plugin.debug("Teleportiere Spieler → Lobby (" + worldName + "), Spawn " +
+                String.format("(%.1f, %.1f, %.1f)", targetSpawn.getX(), targetSpawn.getY(), targetSpawn.getZ()));
+
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                teleportPlayer(p, targetSpawn, "Lobby");
+            }
+        }
     }
 
     // === Bequeme Methoden für EINEN Spieler ===
@@ -64,6 +88,53 @@ public class MapManager {
     }
 
     // ================== Hilfsmethoden ==================
+
+    /** Liefert einen zufälligen Lobby-Spawn oder Fallback auf Welt-Spawn */
+    public Location getRandomLobbySpawn(World world) {
+        Location targetSpawn = null;
+
+        List<String> spawnStrings = plugin.getConfig().getStringList("lobby-spawns");
+        if (!spawnStrings.isEmpty()) {
+            String randomEntry = spawnStrings.get(new Random().nextInt(spawnStrings.size()));
+            try {
+                String[] parts = randomEntry.split(",");
+                if (parts.length >= 3) {
+                    double x = Double.parseDouble(parts[0].trim());
+                    double y = Double.parseDouble(parts[1].trim());
+                    double z = Double.parseDouble(parts[2].trim());
+                    targetSpawn = new Location(world, x + 0.5, y, z + 0.5);
+                } else {
+                    plugin.getLogger().warning("Ungültiger Spawn-Eintrag (zu wenig Koordinaten): " + randomEntry);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Fehler beim Parsen eines lobby-spawns: " + randomEntry + " → " + e.getMessage());
+            }
+        }
+
+        if (targetSpawn == null) {
+            targetSpawn = world.getSpawnLocation();
+            plugin.getLogger().warning("Kein gültiger Lobby-Spawn gefunden → Fallback auf Welt-Spawn!");
+        }
+
+        return targetSpawn;
+    }
+
+    /** Überladung: Holt sich die Lobby-Welt automatisch aus der Config */
+    public Location getRandomLobbySpawn() {
+        String worldName = plugin.getConfig().getString("worlds.lobby");
+        if (worldName == null || worldName.isBlank()) {
+            plugin.getLogger().severe("Fehler: 'worlds.lobby' ist in der Config nicht gesetzt!");
+            return Bukkit.getWorlds().get(0).getSpawnLocation(); // Fallback: erste Welt
+        }
+
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            plugin.getLogger().severe("Lobby-Welt '" + worldName + "' konnte nicht geladen werden!");
+            return Bukkit.getWorlds().get(0).getSpawnLocation(); // Fallback
+        }
+
+        return getRandomLobbySpawn(world);
+    }
 
     /** Teleportiert alle Spieler zu einer bestimmten Welt aus der Config */
     private void teleportAll(Set<UUID> players, String configPath, String debugName) {

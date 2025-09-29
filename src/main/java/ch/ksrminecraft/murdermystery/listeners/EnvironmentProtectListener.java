@@ -24,9 +24,17 @@ public class EnvironmentProtectListener implements Listener {
         this.plugin = plugin;
     }
 
-    private boolean isInArena(Player p) {
+    /**
+     * Prüft, ob ein Spieler in einer Arena- oder Lobby-Welt ist.
+     */
+    private boolean isProtectedWorld(Player p) {
+        // Arena-Welten
         Arena arena = plugin.getArenaManager().getArenaForWorld(p.getWorld());
-        return arena != null;
+        if (arena != null) return true;
+
+        // Lobby-Welt
+        String lobbyWorld = plugin.getConfigManager().getLobbyWorld();
+        return p.getWorld().getName().equalsIgnoreCase(lobbyWorld);
     }
 
     private boolean isAdminBypassed(Player p) {
@@ -36,46 +44,46 @@ public class EnvironmentProtectListener implements Listener {
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         Player p = event.getPlayer();
-        if (!isInArena(p) || isAdminBypassed(p)) return;
+        if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst in der Arena keine Blöcke platzieren!");
-        plugin.debug("BlockPlace verhindert in Arena: " + p.getName() + " → " + event.getBlockPlaced().getType());
+        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke platzieren!");
+        plugin.debug("BlockPlace verhindert in geschützter Welt: " + p.getName() + " → " + event.getBlockPlaced().getType());
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player p = event.getPlayer();
-        if (!isInArena(p) || isAdminBypassed(p)) return;
+        if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst in der Arena keine Blöcke abbauen!");
-        plugin.debug("BlockBreak verhindert in Arena: " + p.getName() + " → " + event.getBlock().getType());
+        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke abbauen!");
+        plugin.debug("BlockBreak verhindert in geschützter Welt: " + p.getName() + " → " + event.getBlock().getType());
     }
 
     @EventHandler
     public void onBucketEmpty(PlayerBucketEmptyEvent event) {
         Player p = event.getPlayer();
-        if (!isInArena(p) || isAdminBypassed(p)) return;
+        if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Eimer sind in der Arena deaktiviert!");
-        plugin.debug("BucketEmpty verhindert in Arena: " + p.getName());
+        p.sendMessage(ChatColor.RED + "Eimer sind hier deaktiviert!");
+        plugin.debug("BucketEmpty verhindert in geschützter Welt: " + p.getName());
     }
 
     @EventHandler
     public void onBucketFill(PlayerBucketFillEvent event) {
         Player p = event.getPlayer();
-        if (!isInArena(p) || isAdminBypassed(p)) return;
+        if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        plugin.debug("BucketFill verhindert in Arena: " + p.getName());
+        plugin.debug("BucketFill verhindert in geschützter Welt: " + p.getName());
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player p = event.getPlayer();
-        if (!isInArena(p) || isAdminBypassed(p)) return;
+        if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         ItemStack item = event.getItem();
         if (item == null) return;
@@ -83,8 +91,8 @@ public class EnvironmentProtectListener implements Listener {
         Material type = item.getType();
         if (type == Material.FLINT_AND_STEEL || type == Material.FIRE_CHARGE) {
             event.setCancelled(true);
-            p.sendMessage(ChatColor.RED + "Feuer ist in der Arena deaktiviert!");
-            plugin.debug("Feuerzeug/FireCharge verhindert in Arena: " + p.getName());
+            p.sendMessage(ChatColor.RED + "Feuer ist hier deaktiviert!");
+            plugin.debug("Feuerzeug/FireCharge verhindert in geschützter Welt: " + p.getName());
         }
     }
 }

@@ -51,23 +51,27 @@ public class BowListener implements Listener {
         Role victimRole = RoleManager.getRole(victim.getUniqueId());
 
         if (victimRole == Role.MURDERER) {
-            plugin.getGameManager().eliminate(victim, shooter);
-
+            // Zuerst die Meldung
             MessageLimiter.sendBroadcast("murderer-killed",
-                    ChatColor.BLUE + "⚔ Der Mörder wurde eliminiert!");
+                    ChatColor.BLUE + shooter.getName() + " hat den Mörder " + victim.getName() + " eliminiert!");
             plugin.debug("Detective " + shooter.getName() + " hat den Mörder " + victim.getName() + " eliminiert.");
+
+            // Danach eliminate → löst Sieg/Statistik aus
+            plugin.getGameManager().eliminate(victim, shooter);
             plugin.getGameManager().checkWinConditions();
 
         } else {
-            plugin.getGameManager().eliminate(victim, shooter);
-
+            // Zuerst die Meldung
             int penalty = plugin.getConfigManager().getPointsKillInnocent();
+            MessageLimiter.sendBroadcast("innocent-killed",
+                    ChatColor.RED + "Detective " + shooter.getName() + " hat " + victim.getName()
+                            + " eliminiert und erhält eine Strafe (" + penalty + " Pt).");
+            plugin.debug("Detective " + shooter.getName() + " hat " + victim.getName() + " (unschuldig) eliminiert.");
+
+            // Dann eliminate & Strafpunkte
+            plugin.getGameManager().eliminate(victim, shooter);
             plugin.getPointsManager().applyPenalty(shooter.getUniqueId(),
                     Math.abs(penalty), "Unschuldigen eliminiert");
-
-            MessageLimiter.sendBroadcast("innocent-killed",
-                    ChatColor.RED + "Der Detective hat einen Unschuldigen eliminiert und erhält eine Strafe (" + penalty + " Pt).");
-            plugin.debug("Detective " + shooter.getName() + " hat " + victim.getName() + " (unschuldig) eliminiert.");
         }
     }
 }
