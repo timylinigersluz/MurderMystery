@@ -2,6 +2,7 @@ name: MurderMystery
 version: '${project.version}'
 main: ch.ksrminecraft.murdermystery.MurderMystery
 api-version: '1.21'
+depend: [RankPointsAPI]
 
 permissions:
   murdermystery.use:

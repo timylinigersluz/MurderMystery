@@ -1,28 +1,37 @@
 package ch.ksrminecraft.murdermystery.managers.game;
 
-import ch.ksrminecraft.RankPointsAPI.PointsAPI;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Punkte-Manager, lädt RankPointsAPI dynamisch via Reflection aus dem RankPointsAPI-Plugin.
+ */
 public class PointsManager {
 
-    private final PointsAPI api;
     private final Logger logger;
     private final MurderMystery plugin;
+
+    private Object apiInstance;
+    private Method mAddPoints;
+    private Method mSetPoints;
+    private Method mGetPoints;
 
     public PointsManager(Logger logger, MurderMystery plugin) {
         this.logger = logger;
         this.plugin = plugin;
 
-        // Daten aus Config laden
         String url = plugin.getConfig().getString("Rank-Points-API-url");
         String user = plugin.getConfig().getString("Rank-Points-API-user");
         String pass = plugin.getConfig().getString("Rank-Points-API-password");
@@ -35,18 +44,36 @@ public class PointsManager {
             throw new IllegalStateException("Config-Werte für RankPointsAPI unvollständig!");
         }
 
-        // PointsAPI initialisieren
-        this.api = new PointsAPI(url, user, pass, logger, debug, excludeStaff);
+        Plugin rp = Bukkit.getPluginManager().getPlugin("RankPointsAPI");
+        if (rp == null || !rp.isEnabled()) {
+            throw new IllegalStateException("RankPointsAPI ist nicht geladen oder deaktiviert!");
+        }
+
+        try {
+            ClassLoader rpCl = rp.getClass().getClassLoader();
+            Class<?> apiClass = rpCl.loadClass("ch.ksrminecraft.RankPointsAPI.PointsAPI");
+
+            Constructor<?> ctor = apiClass.getConstructor(
+                    String.class, String.class, String.class,
+                    Logger.class, boolean.class, boolean.class
+            );
+            apiInstance = ctor.newInstance(url, user, pass, logger, debug, excludeStaff);
+
+            mAddPoints = apiClass.getMethod("addPoints", UUID.class, int.class);
+            mSetPoints = apiClass.getMethod("setPoints", UUID.class, int.class);
+            mGetPoints = apiClass.getMethod("getPoints", UUID.class);
+
+            plugin.debug("RankPointsAPI erfolgreich initialisiert (Reflection).");
+        } catch (Throwable t) {
+            logger.log(Level.SEVERE, "Fehler beim Initialisieren der RankPointsAPI via Reflection", t);
+            throw new IllegalStateException("RankPointsAPI konnte nicht geladen werden.", t);
+        }
     }
 
-    /**
-     * Punkte einer ganzen Runde verteilen + Statistik ausgeben.
-     * (Wird später durch RoundResultManager ersetzt, bleibt aber als Fallback erhalten.)
-     */
+    // --- Rundenpunkte ---
     public void distributeRoundPoints(RoundStats stats, Map<UUID, Role> roles) {
         Map<UUID, String> nameCache = new HashMap<>();
 
-        // Namen auflösen
         for (UUID uuid : stats.getAllPlayers()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
@@ -57,17 +84,15 @@ public class PointsManager {
             }
         }
 
-        // ===== Globale Statistik =====
         String summary = stats.formatSummary(nameCache, roles);
         Bukkit.broadcastMessage(summary);
 
-        // ===== Persönliche Statistik + Punktevergabe =====
         for (UUID uuid : stats.getAllPlayers()) {
             int points = Math.max(0, stats.getPoints(uuid));
-            api.addPoints(uuid, points);
+            addPointsInternal(uuid, points);
 
             String name = nameCache.getOrDefault(uuid, "Unbekannt");
-            int newTotal = api.getPoints(uuid);
+            int newTotal = getPoints(uuid);
 
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
@@ -90,51 +115,42 @@ public class PointsManager {
         }
     }
 
-    // --- Punktemanagement ---
+    // --- API Methoden ---
     public void addPointsToPlayer(UUID uuid, int points) {
-        int safePoints = Math.max(0, points);
-        api.addPoints(uuid, safePoints);
-
-        int newPoints = api.getPoints(uuid);
-        String playerName = getPlayerName(uuid);
-
-        logger.info("Punkte hinzugefügt: +" + safePoints + " an " + playerName +
-                " (UUID=" + uuid + "). Neuer Punktestand: " + newPoints);
-        plugin.debug("Punkte-Update für " + playerName + ": +" + safePoints + " → " + newPoints);
+        addPointsInternal(uuid, Math.max(0, points));
+        plugin.debug("addPointsToPlayer → " + uuid);
     }
 
     public void setPoints(UUID uuid, int points) {
-        int safePoints = Math.max(0, points);
-        api.setPoints(uuid, safePoints);
-
-        int newPoints = api.getPoints(uuid);
-        String playerName = getPlayerName(uuid);
-
-        logger.info("Punkte gesetzt: " + safePoints + " für " + playerName +
-                " (UUID=" + uuid + "). Neuer Punktestand: " + newPoints);
-        plugin.debug("Punkte gesetzt für " + playerName + " → " + newPoints);
+        try {
+            mSetPoints.invoke(apiInstance, uuid, Math.max(0, points));
+        } catch (Throwable t) {
+            logger.log(Level.SEVERE, "setPoints fehlgeschlagen für " + uuid, t);
+        }
     }
 
     public void applyPenalty(UUID uuid, int penaltyPoints, String reason) {
         int applied = Math.max(0, penaltyPoints);
-        api.addPoints(uuid, -applied);
-
-        int newPoints = api.getPoints(uuid);
-        String playerName = getPlayerName(uuid);
-
-        logger.info("Strafe: -" + applied + " Punkte für " + playerName +
-                " (UUID=" + uuid + "). Grund: " + reason +
-                ". Neuer Punktestand: " + newPoints);
-        plugin.debug("Strafe angewendet: -" + applied + " für " + playerName + " (Grund: " + reason + ")");
+        addPointsInternal(uuid, -applied);
+        plugin.debug("Penalty -" + applied + " für " + uuid + " (Grund: " + reason + ")");
     }
 
-    // --- Abfragen ---
     public int getPoints(UUID uuid) {
-        return api.getPoints(uuid);
+        try {
+            Object res = mGetPoints.invoke(apiInstance, uuid);
+            return (res instanceof Integer i) ? i : 0;
+        } catch (Throwable t) {
+            logger.log(Level.SEVERE, "getPoints fehlgeschlagen für " + uuid, t);
+            return 0;
+        }
     }
 
-    private String getPlayerName(UUID uuid) {
-        Player player = Bukkit.getPlayer(uuid);
-        return (player != null) ? player.getName() : "Unbekannt";
+    // --- Intern ---
+    private void addPointsInternal(UUID uuid, int delta) {
+        try {
+            mAddPoints.invoke(apiInstance, uuid, delta);
+        } catch (Throwable t) {
+            logger.log(Level.SEVERE, "addPoints fehlgeschlagen für " + uuid + " (Δ=" + delta + ")", t);
+        }
     }
 }

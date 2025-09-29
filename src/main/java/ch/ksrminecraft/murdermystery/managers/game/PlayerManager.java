@@ -2,6 +2,7 @@ package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.listeners.SignListener;
+import ch.ksrminecraft.murdermystery.managers.effects.Broadcaster;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
 import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
@@ -46,18 +47,14 @@ public class PlayerManager {
         joinInternal(p, size);
     }
 
-    // Gemeinsame Join-Logik
     private void joinInternal(Player p, String size) {
         UUID uuid = p.getUniqueId();
 
         if (gameManager.isGameStarted()) {
-            // Spiel läuft schon -> Spieler als Zuschauer in die Lobby/Spiel-Welt
             mapManager.teleportToLobby(p);
             p.sendMessage(ChatColor.YELLOW + "Es läuft gerade eine MurderMystery-Runde.");
             p.sendMessage(ChatColor.GRAY + "Bitte warte in der Lobby, bis die Runde vorbei ist.");
             plugin.debug("Join von " + p.getName() + " blockiert → Spiel läuft bereits.");
-
-            // Spieler in die GAME-BossBar aufnehmen
             gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.GAME);
             return;
         }
@@ -66,46 +63,77 @@ public class PlayerManager {
             resetPlayer(p);
             mapManager.teleportToLobby(p);
 
-            plugin.debug("Spieler " + p.getName() + " ist der Lobby beigetreten. Spielerzahl="
-                    + gameManager.getPlayers().size()
+            plugin.debug("Spieler " + p.getName() + " ist der Lobby beigetreten. Spielerzahl=" + gameManager.getPlayers().size()
                     + (size != null ? " (gewünschte Grösse: " + size + ")" : ""));
 
-            // Spieler in die LOBBY-BossBar aufnehmen
             gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
 
             int needed = gameManager.getMinPlayers() - gameManager.getPlayers().size();
             if (needed > 0) {
-                Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() +
-                        ChatColor.GRAY + " hat die Wartelobby betreten. Es werden noch " +
-                        ChatColor.GOLD + needed + ChatColor.GRAY +
-                        " Spieler benötigt, um das Spiel zu starten.");
+                Bukkit.broadcastMessage(ChatColor.AQUA + p.getName() + ChatColor.GRAY + " hat die Wartelobby betreten. Es werden noch "
+                        + ChatColor.GOLD + needed + ChatColor.GRAY + " Spieler benötigt, um das Spiel zu starten.");
             } else {
-                Bukkit.broadcastMessage(ChatColor.GREEN + "✅ Mindestanzahl erreicht! Spiel startet bald...");
+                Bukkit.broadcastMessage(ChatColor.GREEN + "Mindestanzahl erreicht! Spiel startet bald...");
                 gameManager.startCountdown();
             }
 
             SignListener.updateJoinSigns(plugin);
-
         } else {
             p.sendMessage(ChatColor.GRAY + "Du bist schon in der Lobby");
         }
     }
 
+    /**
+     * Leave-Handling: Meldung, Strafpunkte, Rollenlogik.
+     */
     public void handleLeave(Player p) {
         UUID uuid = p.getUniqueId();
+        Role role = RoleManager.getRole(uuid);
 
         gameManager.getPlayers().remove(uuid);
         gameManager.getSpectators().remove(uuid);
         RoleManager.removePlayer(uuid);
 
-        // Spieler sofort aus BossBars entfernen
         gameManager.getBossBarManager().removePlayer(p);
 
-        mapManager.teleportToMainWorld(p);
-        p.sendMessage(ChatColor.YELLOW + "Du hast die MurderMystery-Runde verlassen.");
-        plugin.debug("Spieler " + p.getName() + " hat das Spiel verlassen.");
+        // --- Strafpunkte ---
+        int penalty = Math.abs(configManager.getPointsQuit());
+        gameManager.getPointsManager().applyPenalty(uuid, penalty, "Spiel verlassen");
+        int newPoints = gameManager.getPointsManager().getPoints(uuid);
 
-        // Update Join-Schilder
+        // Nachricht an den Quitter
+        p.sendMessage(ChatColor.RED + "Du hast die Runde verlassen und -" + penalty + " Punkte erhalten.");
+        p.sendMessage(ChatColor.GRAY + "Neuer Punktestand: " + ChatColor.GOLD + newPoints);
+
+        // --- Rollen-spezifische Behandlung ---
+        if (role == Role.DETECTIVE) {
+            // Inventar leeren & Bogen/Pfeil droppen
+            p.getInventory().remove(Material.BOW);
+            p.getInventory().remove(Material.ARROW);
+            p.getWorld().dropItemNaturally(p.getLocation(), ItemManager.createDetectiveBow());
+            p.getWorld().dropItemNaturally(p.getLocation(), new ItemStack(Material.ARROW, 1));
+
+            Broadcaster.broadcastMessage(gameManager.getPlayers(),
+                    ChatColor.BLUE + "🔎 Der Detective hat die Runde verlassen!");
+            plugin.debug("Detective " + p.getName() + " hat die Runde verlassen → Items gedroppt.");
+
+        } else if (role == Role.BYSTANDER) {
+            Broadcaster.broadcastMessage(gameManager.getPlayers(),
+                    ChatColor.YELLOW + "👤 Ein Unschuldiger hat die Runde verlassen!");
+            plugin.debug("Bystander " + p.getName() + " hat die Runde verlassen.");
+
+        } else if (role == Role.MURDERER) {
+            Broadcaster.broadcastMessage(gameManager.getPlayers(),
+                    ChatColor.DARK_RED + "🔪 Der Murderer hat die Runde verlassen!");
+            plugin.debug("Murderer " + p.getName() + " hat die Runde verlassen → sofortiges Spielende.");
+            gameManager.endRound(RoundResultManager.EndCondition.DETECTIVE_WIN);
+            return; // ⬅ nichts mehr danach ausführen!
+        }
+
+        // Zurück in MainWorld
+        mapManager.teleportToMainWorld(p);
+        plugin.debug("Spieler " + p.getName() + " zurück in MainWorld teleportiert.");
+
         SignListener.updateJoinSigns(plugin);
 
         if (gameManager.getPlayers().isEmpty()) {
@@ -115,32 +143,37 @@ public class PlayerManager {
     }
 
     public void eliminate(Player victim, Player killer) {
+        // --- NEU: nach Spielschluss nichts mehr machen ---
+        if (!gameManager.isGameStarted()) {
+            plugin.debug("Eliminate von " + victim.getName() + " ignoriert (Spiel bereits beendet).");
+            return;
+        }
+
         UUID victimId = victim.getUniqueId();
 
         if (gameManager.getSpectators().add(victimId)) {
             gameManager.getPlayers().remove(victimId);
 
-            // Detective droppt Items
             if (RoleManager.getRole(victimId) == Role.DETECTIVE) {
-                // Vorhandene Bögen und Pfeile entfernen → garantiert nur 1 Drop
+                // Bogen + Pfeil aus Inventar entfernen
                 victim.getInventory().remove(Material.BOW);
                 victim.getInventory().remove(Material.ARROW);
 
-                // Exakt 1 Bogen + 1 Pfeil droppen
-                ItemStack bow = ItemManager.createDetectiveBow();
-                ItemStack arrow = new ItemStack(Material.ARROW, 1);
+                // Sicherstellen, dass auch custom Detective-Bogen raus ist
+                victim.getInventory().removeItem(ItemManager.createDetectiveBow());
 
-                victim.getWorld().dropItemNaturally(victim.getLocation(), bow);
-                victim.getWorld().dropItemNaturally(victim.getLocation(), arrow);
+                // Drop neuen Detective-Bogen + 1 Pfeil am Todesort
+                victim.getWorld().dropItemNaturally(victim.getLocation(), ItemManager.createDetectiveBow());
+                victim.getWorld().dropItemNaturally(victim.getLocation(), new ItemStack(Material.ARROW, 1));
 
-                plugin.debug("Detective " + victim.getName() + " wurde getötet → 1x Bogen + 1x Pfeil gedroppt.");
+                plugin.debug("Detective " + victim.getName() + " wurde getötet → Bogen & Pfeil gedroppt.");
             }
 
-            // Kill-Tracking
             if (killer != null) {
                 UUID killerId = killer.getUniqueId();
                 Role killerRole = RoleManager.getRole(killerId);
 
+                // --- Nur Punkte/Kills zählen, wenn Spiel läuft ---
                 if (killerRole == Role.MURDERER) {
                     gameManager.getOrCreateRoundStats().addKill(killerId, victimId);
                 } else if (killerRole == Role.DETECTIVE &&
@@ -156,28 +189,18 @@ public class PlayerManager {
         }
     }
 
-    // StartGame jetzt mit Arena-Size
     public void startGame(Set<UUID> players, Map<UUID, Role> roles, String arenaSize) {
         plugin.debug("Spielstart mit " + players.size() + " Spielern.");
-
         roles.putAll(RoleManager.assignRoles(players));
 
-        Arena chosenArena = null;
-        if (arenaSize != null) {
-            chosenArena = arenaManager.getRandomArenaBySize(arenaSize);
-            plugin.debug("Arena-Auswahl nach Größe (" + arenaSize + "): " +
-                    (chosenArena != null ? chosenArena.getName() : "Fallback → random"));
-        }
-        if (chosenArena == null) {
-            chosenArena = arenaManager.getRandomArena();
-            plugin.debug("Arena-Auswahl → Standard Random");
-        }
+        Arena chosenArena = (arenaSize != null) ? arenaManager.getRandomArenaBySize(arenaSize) : arenaManager.getRandomArena();
+        if (chosenArena == null) chosenArena = arenaManager.getRandomArena();
 
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
                 p.teleport(chosenArena.getRandomSpawn());
-                plugin.debug("Spieler " + p.getName() + " wurde nach Arena '" + chosenArena.getName() + "' teleportiert.");
+                plugin.debug("Spieler " + p.getName() + " → Arena '" + chosenArena.getName() + "'");
             }
         }
 
@@ -193,10 +216,8 @@ public class PlayerManager {
                     p.getInventory().setItem(7, new ItemStack(Material.ARROW, 1));
                     p.getInventory().setItem(8, ItemManager.createDetectiveBow());
                 }
-                case MURDERER -> {
-                    p.getInventory().setItem(8, ItemManager.createMurdererSword());
-                }
-                case BYSTANDER -> { /* keine Items */ }
+                case MURDERER -> p.getInventory().setItem(8, ItemManager.createMurdererSword());
+                case BYSTANDER -> {}
             }
             p.updateInventory();
         }
@@ -208,26 +229,21 @@ public class PlayerManager {
             if (p != null && p.isOnline()) {
                 resetPlayer(p);
                 mapManager.teleportToMainWorld(p);
-                plugin.debug("Reset für Spieler " + p.getName() + " ausgeführt (zurück in Main-World).");
+                plugin.debug("Reset für Spieler " + p.getName() + " → Main-World.");
             }
         }
         SignListener.updateJoinSigns(plugin);
     }
 
-    // Hilfsmethoden
     private void resetPlayer(Player p) {
         p.setGameMode(configManager.getPlayerGameMode());
         p.setHealth(p.getMaxHealth());
         p.setFoodLevel(20);
         p.setSaturation(20);
         p.setFireTicks(0);
-
-        // Inventar komplett leeren
         p.getInventory().clear();
         p.getInventory().setArmorContents(null);
         p.getInventory().setItemInOffHand(null);
-
-        // Cleanup über ItemManager
         ItemManager.clearSpecialItems(p);
     }
 

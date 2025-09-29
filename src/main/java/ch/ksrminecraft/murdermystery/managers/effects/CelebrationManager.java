@@ -37,4 +37,9 @@ public class CelebrationManager {
             }, delay);
         }
     }
+
+    public void playLoserSound(Player player) {
+        if (player == null || !player.isOnline()) return;
+        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+    }
 }

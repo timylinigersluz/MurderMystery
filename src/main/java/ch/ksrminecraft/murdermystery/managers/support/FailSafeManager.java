@@ -1,12 +1,14 @@
 package ch.ksrminecraft.murdermystery.managers.support;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.model.Role;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
 
@@ -35,38 +37,40 @@ public class FailSafeManager {
 
                 switch (role) {
                     case DETECTIVE -> {
-                        // Bogen wiederherstellen
-                        if (!p.getInventory().contains(ItemManager.createDetectiveBow())) {
+                        // Detective-Bogen sicherstellen (Infinity/Unbreaking)
+                        boolean hasBow = p.getInventory().containsAtLeast(ItemManager.createDetectiveBow(), 1);
+                        if (!hasBow) {
                             p.getInventory().addItem(ItemManager.createDetectiveBow());
-                            p.sendMessage(ChatColor.YELLOW + "Dein Detective-Bogen wurde wiederhergestellt!");
+                            plugin.debug("FailSafe: Bogen bei " + p.getName() + " wiederhergestellt.");
                         }
 
-                        // Pfeil wiederherstellen (immer genau 1)
-                        long arrowCount = p.getInventory().all(org.bukkit.Material.ARROW)
+                        // Pfeile prüfen → genau 1
+                        int arrowCount = p.getInventory().all(Material.ARROW)
                                 .values()
                                 .stream()
                                 .mapToInt(stack -> stack != null ? stack.getAmount() : 0)
                                 .sum();
 
                         if (arrowCount == 0) {
-                            p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 1));
+                            p.getInventory().addItem(new ItemStack(Material.ARROW, 1));
                             p.sendMessage(ChatColor.YELLOW + "Dein Detective-Pfeil wurde wiederhergestellt!");
+                            plugin.debug("FailSafe: Kein Pfeil bei " + p.getName() + " → wiederhergestellt.");
                         } else if (arrowCount > 1) {
-                            // Sicherheit: auf 1 Pfeil reduzieren
-                            p.getInventory().remove(org.bukkit.Material.ARROW);
-                            p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 1));
-                            plugin.debug("Detective " + p.getName() + " hatte mehr als 1 Pfeil → korrigiert auf genau 1.");
+                            p.getInventory().remove(Material.ARROW);
+                            p.getInventory().addItem(new ItemStack(Material.ARROW, 1));
+                            plugin.debug("FailSafe: Pfeile bei " + p.getName() + " still auf genau 1 reduziert (hatte " + arrowCount + ").");
                         }
                     }
                     case MURDERER -> {
                         if (!p.getInventory().contains(ItemManager.createMurdererSword())) {
                             p.getInventory().addItem(ItemManager.createMurdererSword());
                             p.sendMessage(ChatColor.YELLOW + "Dein Murderer-Schwert wurde wiederhergestellt!");
+                            plugin.debug("FailSafe: Schwert bei " + p.getName() + " wiederhergestellt.");
                         }
                     }
                 }
             }
-        }, 0L, 200L);
+        }, 0L, 200L); // alle 10 Sekunden
     }
 
     public void stop() {

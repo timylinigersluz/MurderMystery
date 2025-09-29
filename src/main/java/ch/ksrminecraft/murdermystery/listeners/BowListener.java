@@ -45,30 +45,29 @@ public class BowListener implements Listener {
         if (!(arrow.getShooter() instanceof Player shooter)) return;
         if (!ItemManager.isDetectiveBow(shooter.getInventory().getItemInMainHand())) return;
 
-        // Kein Schaden, nur Logik triggern
-        event.setDamage(0);
+        // Standard-Schaden komplett verhindern
+        event.setCancelled(true);
 
         Role victimRole = RoleManager.getRole(victim.getUniqueId());
 
         if (victimRole == Role.MURDERER) {
-            // zentral über PlayerManager
             plugin.getGameManager().eliminate(victim, shooter);
 
             MessageLimiter.sendBroadcast("murderer-killed",
-                    ChatColor.BLUE + "⚔ Der Mörder wurde getötet!");
-            plugin.debug("Detective " + shooter.getName() + " hat den Mörder " + victim.getName() + " getötet.");
+                    ChatColor.BLUE + "⚔ Der Mörder wurde eliminiert!");
+            plugin.debug("Detective " + shooter.getName() + " hat den Mörder " + victim.getName() + " eliminiert.");
             plugin.getGameManager().checkWinConditions();
+
         } else {
-            // Innocent oder Detective getroffen
             plugin.getGameManager().eliminate(victim, shooter);
 
             int penalty = plugin.getConfigManager().getPointsKillInnocent();
             plugin.getPointsManager().applyPenalty(shooter.getUniqueId(),
-                    Math.abs(penalty), "Unschuldigen getötet");
+                    Math.abs(penalty), "Unschuldigen eliminiert");
 
             MessageLimiter.sendBroadcast("innocent-killed",
-                    ChatColor.RED + "❌ Der Detective hat einen Unschuldigen getötet und erhält eine Strafe (" + penalty + " Pt).");
-            plugin.debug("Detective " + shooter.getName() + " hat " + victim.getName() + " (unschuldig) getötet.");
+                    ChatColor.RED + "Der Detective hat einen Unschuldigen eliminiert und erhält eine Strafe (" + penalty + " Pt).");
+            plugin.debug("Detective " + shooter.getName() + " hat " + victim.getName() + " (unschuldig) eliminiert.");
         }
     }
 }

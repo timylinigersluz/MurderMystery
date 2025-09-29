@@ -91,12 +91,17 @@ public class GameManager {
     }
 
     public void handleLeave(Player player) {
+        if (!gameStarted) {
+            // Spieler einfach in MainWorld teleportieren
+            playerManager.resetGame(Set.of(player.getUniqueId()));
+            return;
+        }
+
+        // Alles zentrale Handling läuft über PlayerManager
         playerManager.handleLeave(player);
-        if (gameStarted && roundStats != null) {
+
+        if (roundStats != null) {
             roundStats.markQuitter(player.getUniqueId());
-            pointsManager.applyPenalty(player.getUniqueId(),
-                    Math.abs(configManager.getPointsQuit()),
-                    "Spiel verlassen");
         }
     }
 
@@ -145,7 +150,13 @@ public class GameManager {
         failSafeManager.start();
     }
 
-    public void checkWinConditions() { winConditionManager.checkWinConditions(players, roles, roundStats); }
+    public void checkWinConditions() {
+        RoundResultManager.EndCondition result =
+                winConditionManager.checkWinConditions(players, roles, roundStats);
+        if (result != null) {
+            endRound(result);
+        }
+    }
 
     // ----------------- Runden-Ende -----------------
     public void endRound(RoundResultManager.EndCondition condition) {
@@ -154,9 +165,8 @@ public class GameManager {
             Set<UUID> allPlayers = new HashSet<>();
             allPlayers.addAll(players);
             allPlayers.addAll(spectators);
-            playerManager.resetGame(allPlayers);
 
-            // (2) Titel-Anzeige
+            // (2) Titel-Anzeige + Sounds
             for (UUID uuid : allPlayers) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
@@ -165,6 +175,7 @@ public class GameManager {
                         Broadcaster.sendTitle(p, "§aSieg!", "Gut gemacht!");
                     } else {
                         Broadcaster.sendTitle(p, "§cNiederlage!", "Versuch's nochmal!");
+                        celebrationManager.playLoserSound(p); // 👈 Verlierer-Sound
                     }
                 }
             }
@@ -189,7 +200,11 @@ public class GameManager {
     }
 
     public void handleTimeout() {
-        winConditionManager.forceTimeoutEnd(players, roles, roundStats);
+        RoundResultManager.EndCondition result =
+                winConditionManager.forceTimeoutEnd(players, roles, roundStats);
+        if (result != null) {
+            endRound(result);
+        }
     }
 
     public void resetGame() {
@@ -295,8 +310,10 @@ public class GameManager {
         return roundStats != null && roundStats.getDetectiveInnocentKills(detective) > 0;
     }
 
-    // NEU hinzugefügt:
     public GameTimerManager getGameTimerManager() {
         return gameTimerManager;
+    }
+    public PointsManager getPointsManager() {
+        return pointsManager;
     }
 }

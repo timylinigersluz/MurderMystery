@@ -1,7 +1,9 @@
 package ch.ksrminecraft.murdermystery.managers.effects;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -14,19 +16,21 @@ import java.util.UUID;
 
 public class ItemManager {
 
-    private static final String DETECTIVE_BOW_NAME = "§bDetective-Bogen";
-    private static final String MURDERER_SWORD_NAME = "§4Murderer-Schwert";
+    // ------------------ Konstanten ------------------
+    private static final String DETECTIVE_BOW_NAME = ChatColor.AQUA + "Detective-Bogen"; // §b
+    private static final String MURDERER_SWORD_NAME = ChatColor.DARK_RED + "Murderer-Schwert"; // §4
 
     private static final Map<UUID, Long> bowCooldown = new HashMap<>();
     private static final long COOLDOWN_MILLIS = 3000; // 3 Sekunden
 
     // ------------------ Erstellung ------------------
-
     public static ItemStack createDetectiveBow() {
-        ItemStack bow = new ItemStack(Material.BOW, 1);
+        ItemStack bow = new ItemStack(Material.BOW);
         ItemMeta meta = bow.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(DETECTIVE_BOW_NAME);
+            meta.addEnchant(Enchantment.INFINITY, 1, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
             meta.setUnbreakable(true);
             bow.setItemMeta(meta);
         }
@@ -45,7 +49,6 @@ public class ItemManager {
     }
 
     // ------------------ Erkennung ------------------
-
     public static boolean isDetectiveBow(ItemStack item) {
         if (item == null || item.getType() != Material.BOW || !item.hasItemMeta()) return false;
         return DETECTIVE_BOW_NAME.equals(item.getItemMeta().getDisplayName());
@@ -57,7 +60,6 @@ public class ItemManager {
     }
 
     // ------------------ Gameplay ------------------
-
     public static boolean canShoot(Player player) {
         long now = System.currentTimeMillis();
         UUID id = player.getUniqueId();
@@ -69,7 +71,6 @@ public class ItemManager {
     }
 
     // ------------------ Cleanup ------------------
-
     /**
      * Entfernt alle Spezialitems (Bogen, Schwert, Pfeile) aus dem Inventar UND vom Boden in der Nähe.
      */
@@ -101,7 +102,8 @@ public class ItemManager {
                         stack.getType() == Material.ARROW) {
                     dropped.remove();
                     removed = true;
-                    MurderMystery.getInstance().debug("Cleanup: Dropped Spezialitem von " + p.getName() + " entfernt (" + stack.getType() + ")");
+                    MurderMystery.getInstance().debug("Cleanup: Dropped Spezialitem von " + p.getName() +
+                            " entfernt (" + stack.getType() + ")");
                 }
             }
         }

@@ -55,6 +55,7 @@ public class MurderMystery extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SwordListener(this), this);
         getServer().getPluginManager().registerEvents(new BowListener(this), this);
         getServer().getPluginManager().registerEvents(new SpecialItemListener(this), this);
+        getServer().getPluginManager().registerEvents(new AdvancementBlockListener(this), this);
 
         debug("Alle Listener erfolgreich registriert.");
 

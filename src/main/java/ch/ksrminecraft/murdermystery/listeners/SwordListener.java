@@ -40,7 +40,7 @@ public class SwordListener implements Listener {
 
             // Broadcast + Debug
             MessageLimiter.sendBroadcast("murderer-kill",
-                    ChatColor.DARK_RED + "🔪 Der Mörder hat einen Spieler getötet!");
+                    ChatColor.DARK_RED + "Der Mörder hat einen Spieler getötet!");
             plugin.debug("Murderer " + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet.");
         }
     }

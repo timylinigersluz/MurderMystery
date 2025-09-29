@@ -2,13 +2,9 @@ package ch.ksrminecraft.murdermystery.managers.game;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.Broadcaster;
-import ch.ksrminecraft.murdermystery.managers.effects.CelebrationManager;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
 
 import java.util.Map;
 import java.util.Set;
@@ -18,73 +14,68 @@ public class WinConditionManager {
 
     private final GameManager gameManager;
     private final MurderMystery plugin;
-    private final CelebrationManager celebrationManager;
 
     public WinConditionManager(GameManager gameManager, PointsManager pointsManager, MurderMystery plugin) {
         this.gameManager = gameManager;
         this.plugin = plugin;
-        this.celebrationManager = new CelebrationManager(plugin);
     }
 
-    public void checkWinConditions(Set<UUID> players,
-                                   Map<UUID, Role> roles,
-                                   RoundStats stats) {
+    /**
+     * Prüft die aktuellen Siegbedingungen.
+     * Gibt eine EndCondition zurück, falls das Spiel beendet ist.
+     * Gibt null zurück, wenn das Spiel weiterläuft.
+     */
+    public RoundResultManager.EndCondition checkWinConditions(Set<UUID> players,
+                                                              Map<UUID, Role> roles,
+                                                              RoundStats stats) {
 
-        plugin.debug("WinCondition Check gestartet. Alive=" + players.size());
+        // Zähle lebende Rollen
+        int aliveMurderers = 0;
+        int aliveDetectives = 0;
+        int aliveBystanders = 0;
 
-        boolean murdererAlive = roles.entrySet().stream()
-                .anyMatch(e -> e.getValue() == Role.MURDERER && players.contains(e.getKey()));
+        for (Map.Entry<UUID, Role> e : roles.entrySet()) {
+            if (!players.contains(e.getKey())) continue;
+            switch (e.getValue()) {
+                case MURDERER -> aliveMurderers++;
+                case DETECTIVE -> aliveDetectives++;
+                case BYSTANDER -> aliveBystanders++;
+            }
+        }
 
-        // === Fall: Murderer tot → Detective/Bystander gewinnen ===
-        if (!murdererAlive) {
+        plugin.debug("WinCondition: alive M=" + aliveMurderers +
+                ", D=" + aliveDetectives + ", B=" + aliveBystanders);
+
+        // === Murderer tot → Detective/Bystander gewinnen ===
+        if (aliveMurderers == 0) {
             Broadcaster.broadcastMessage(gameManager.getPlayers(),
                     ChatColor.AQUA + "✅ Die Bystander haben gewonnen!");
-
-            // ✅ Rundenende inkl. Kills/Stats
-            gameManager.endRound(RoundResultManager.EndCondition.DETECTIVE_WIN);
-            return;
+            return RoundResultManager.EndCondition.DETECTIVE_WIN;
         }
 
-        // === Fall: nur noch Murderer lebt → Murderer gewinnt ===
-        boolean onlyMurdererLeft = (players.size() == 1 &&
-                roles.get(players.iterator().next()) == Role.MURDERER);
-
-        if (onlyMurdererLeft) {
+        // === Alle Unschuldigen (Bystander) tot und mindestens ein Murderer lebt → Murderer gewinnt ===
+        // Deckt sowohl "nur Murderer lebt" als auch "Murderer + Detective leben" ab.
+        if (aliveBystanders == 0 && aliveMurderers > 0) {
             Broadcaster.broadcastMessage(gameManager.getPlayers(),
-                    ChatColor.DARK_RED + "🔪 Der Murderer hat gewonnen!");
-
-            // ✅ Rundenende inkl. Kills/Stats
-            gameManager.endRound(RoundResultManager.EndCondition.MURDERER_WIN);
+                    ChatColor.DARK_RED + "🔪 Alle Unschuldigen sind tot! Der Murderer hat gewonnen!");
+            return RoundResultManager.EndCondition.MURDERER_WIN;
         }
+
+        // Spiel geht weiter
+        return null;
     }
 
-    public void forceTimeoutEnd(Set<UUID> players,
-                                Map<UUID, Role> roles,
-                                RoundStats stats) {
+    /**
+     * Timeout-Ende erzwingen → immer Unentschieden.
+     */
+    public RoundResultManager.EndCondition forceTimeoutEnd(Set<UUID> players,
+                                                           Map<UUID, Role> roles,
+                                                           RoundStats stats) {
         plugin.debug("Timeout-Ende: Zeit abgelaufen, niemand gewinnt.");
 
         Broadcaster.broadcastMessage(gameManager.getPlayers(),
                 ChatColor.YELLOW + "⏰ Zeitlimit erreicht! Niemand hat gewonnen.");
 
-        // ✅ Rundenende inkl. Stats
-        gameManager.endRound(RoundResultManager.EndCondition.TIME_UP);
-    }
-
-    // -------------------- Hilfsmethoden --------------------
-
-    private void handleWinner(Player p) {
-        if (p != null && p.isOnline()) {
-            p.sendTitle(ChatColor.GREEN + "🎉 Sieg!", ChatColor.AQUA + "Gut gemacht!", 20, 80, 20);
-            p.sendMessage(ChatColor.GREEN + "🎉 Du hast gewonnen!");
-            celebrationManager.launchFireworks(p);
-        }
-    }
-
-    private void handleLoser(Player p) {
-        if (p != null && p.isOnline()) {
-            p.sendTitle(ChatColor.RED + "❌ Niederlage!", ChatColor.GRAY + "Du hast verloren!", 20, 80, 20);
-            p.sendMessage(ChatColor.RED + "❌ Du hast verloren!");
-            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-        }
+        return RoundResultManager.EndCondition.TIME_UP;
     }
 }
