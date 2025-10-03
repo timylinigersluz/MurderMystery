@@ -14,7 +14,7 @@ public class ArenaManager {
     private final MurderMystery plugin;
     private final ConfigManager configManager;
     private final Map<String, Arena> arenas = new HashMap<>();
-    private final Map<String, String> arenaSizes = new HashMap<>(); // ArenaName → Size
+    private final Map<String, String> arenaSizes = new HashMap<>();
     private final Random random = new Random();
 
     public ArenaManager(MurderMystery plugin, ConfigManager configManager) {
@@ -28,17 +28,19 @@ public class ArenaManager {
         arenaSizes.clear();
 
         Map<String, ConfigManager.ArenaConfig> arenaConfigs = configManager.getArenas();
+        plugin.debug("[ArenaManager] Lade Arenen aus Config. Gefunden: " + arenaConfigs.size());
+
         if (arenaConfigs.isEmpty()) {
             plugin.getLogger().severe("Keine Arenen in der Config gefunden!");
             return;
         }
 
         for (ConfigManager.ArenaConfig cfg : arenaConfigs.values()) {
-            String worldName = cfg.getWorld();
-            int maxPlayers = cfg.getMaxPlayers();
-            String size = cfg.getSize();
+            final String worldName = cfg.getWorld();
+            final int maxPlayers = cfg.getMaxPlayers();
+            final String size = cfg.getSize();
 
-            // --- Auto-Load der Welt ---
+            // Welt laden / nachladen
             World world = Bukkit.getWorld(worldName);
             if (world == null) {
                 plugin.getLogger().warning("Welt '" + worldName + "' ist nicht geladen. Versuche zu laden...");
@@ -46,94 +48,140 @@ public class ArenaManager {
                     world = new WorldCreator(worldName).createWorld();
                     plugin.getLogger().info("Welt '" + worldName + "' erfolgreich geladen!");
                 } catch (Exception ex) {
-                    plugin.getLogger().severe("Arena '" + cfg.getName() + "': Welt '" + worldName + "' konnte NICHT geladen werden! Fehler: " + ex.getMessage());
+                    plugin.getLogger().severe("Arena '" + cfg.getName() + "': Welt '" + worldName +
+                            "' konnte NICHT geladen werden! Fehler: " + ex.getMessage());
                     continue;
                 }
             }
 
-            List<Location> spawns = new ArrayList<>();
-            for (String s : cfg.getSpawns()) {
-                try {
-                    String[] parts = s.split(",");
-                    if (parts.length < 3) continue;
-                    double x = Double.parseDouble(parts[0].trim());
-                    double y = Double.parseDouble(parts[1].trim());
-                    double z = Double.parseDouble(parts[2].trim());
-                    spawns.add(new Location(world, x, y, z));
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Fehler beim Laden von Spawn '" + s + "' in Arena '" + cfg.getName() + "': " + ex.getMessage());
-                }
-            }
-
-            Integer minX = cfg.getRegion().get("minX");
-            Integer maxX = cfg.getRegion().get("maxX");
-            Integer minZ = cfg.getRegion().get("minZ");
-            Integer maxZ = cfg.getRegion().get("maxZ");
-
+            // Arena anlegen (GameSpawns füllen wir gleich)
             String arenaKey = cfg.getName().toLowerCase();
             Arena arena = new Arena(
                     arenaKey,
                     maxPlayers,
-                    spawns,
+                    new ArrayList<>(), // arenaGameSpawnPoints wird gleich befüllt
                     world,
-                    minX,
-                    maxX,
-                    minZ,
-                    maxZ,
-                    size // Größe wird an Arena übergeben
+                    cfg.getRegion().get("minX"),
+                    cfg.getRegion().get("maxX"),
+                    cfg.getRegion().get("minZ"),
+                    cfg.getRegion().get("maxZ"),
+                    size
             );
+
+            // Arena-Lobby-Spawn setzen
+            Location lobby = cfg.getArenaLobbySpawnPoint();
+            if (lobby != null) {
+                if (lobby.getWorld() == null) lobby.setWorld(world);
+                arena.setArenaLobbySpawnPoint(lobby);
+                plugin.debug("[ArenaManager] Lobby-Spawn gesetzt für '" + arenaKey + "' → "
+                        + String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                        lobby.getX(), lobby.getY(), lobby.getZ(), lobby.getYaw(), lobby.getPitch()));
+            } else {
+                plugin.debug("[ArenaManager] Kein Lobby-Spawn für '" + arenaKey + "' in der Config. Fallback: Weltspawn.");
+            }
+
+            // Game-Spawns & optional Spectator-Spawn laden
+            for (String s : cfg.getArenaGameSpawnPoints()) {
+                try {
+                    String[] parts = s.split(",");
+                    if (parts.length < 3) {
+                        plugin.debug("[ArenaManager] Ungültiger Spawn-String: " + s);
+                        continue;
+                    }
+
+                    double x = Double.parseDouble(parts[0].trim());
+                    double y = Double.parseDouble(parts[1].trim());
+                    double z = Double.parseDouble(parts[2].trim());
+                    float yaw = parts.length > 3 ? Float.parseFloat(parts[3].trim()) : 0f;
+                    float pitch = parts.length > 4 ? Float.parseFloat(parts[4].trim()) : 0f;
+
+                    Location loc = new Location(world, x, y, z, yaw, pitch);
+
+                    if (parts.length > 5 && parts[5].equalsIgnoreCase("SPECTATOR")) {
+                        arena.setSpectatorSpawnPoint(loc);
+                        plugin.debug("[ArenaManager] Spectator-Spawn erkannt: " + loc);
+                    } else {
+                        arena.getArenaGameSpawnPoints().add(loc);
+                        plugin.debug("[ArenaManager] GameSpawn hinzugefügt: " + loc);
+                    }
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Fehler beim Laden von Spawn '" + s +
+                            "' in Arena '" + cfg.getName() + "': " + ex.getMessage());
+                }
+            }
+
             arenas.put(arenaKey, arena);
             arenaSizes.put(arenaKey, size.toLowerCase());
 
-            plugin.debug("Arena '" + arenaKey + "' geladen → Größe=" + size + ", Welt=" + worldName);
+            plugin.debug("[ArenaManager] Arena '" + arenaKey + "' geladen → Größe=" + size +
+                    ", Welt=" + worldName +
+                    ", GameSpawns=" + arena.getArenaGameSpawnPoints().size() +
+                    (arena.getSpectatorSpawnPoint() != null ? " + Spectator-Spawn" : "") +
+                    (lobby != null ? " + Lobby-Spawn" : ""));
         }
+
+        plugin.debug("[ArenaManager] Fertig geladen. Arenen insgesamt: " + arenas.size());
     }
 
     public void reload() {
+        plugin.debug("[ArenaManager] Reload angefordert.");
         configManager.reload();
         loadArenasFromConfig();
     }
 
     public Arena getArena(String name) {
-        return arenas.get(name.toLowerCase());
+        if (name == null) return null;
+        Arena arena = arenas.get(name.toLowerCase());
+        if (arena == null) {
+            plugin.debug("[ArenaManager] getArena(" + name + ") → nicht gefunden!");
+        }
+        return arena;
     }
 
     public Arena getRandomArena() {
-        if (arenas.isEmpty()) return null;
+        if (arenas.isEmpty()) {
+            plugin.debug("[ArenaManager] getRandomArena → keine Arenen vorhanden.");
+            return null;
+        }
         List<Arena> list = new ArrayList<>(arenas.values());
         return list.get(random.nextInt(list.size()));
     }
 
     public Arena getRandomArenaBySize(String size) {
+        plugin.debug("[ArenaManager] getRandomArenaBySize(" + size + ")");
         List<Arena> filtered = new ArrayList<>();
         for (String key : arenas.keySet()) {
             if (arenaSizes.getOrDefault(key, "unspecified").equalsIgnoreCase(size)) {
                 filtered.add(arenas.get(key));
             }
         }
-        if (filtered.isEmpty()) return getRandomArena();
+        if (filtered.isEmpty()) {
+            plugin.debug("[ArenaManager] Keine passende Größe gefunden → fallback getRandomArena()");
+            return getRandomArena();
+        }
         return filtered.get(random.nextInt(filtered.size()));
+    }
+
+    public Collection<Arena> getAllArenas() {
+        plugin.debug("[ArenaManager] getAllArenas() → " + arenas.size() + " Arenen zurückgegeben.");
+        return Collections.unmodifiableCollection(arenas.values());
     }
 
     /** Arena anhand der Welt bestimmen */
     public Arena getArenaForWorld(World world) {
-        if (world == null) return null;
-        return arenas.values().stream()
+        if (world == null) {
+            plugin.debug("[ArenaManager] getArenaForWorld(null) → null");
+            return null;
+        }
+
+        Arena arena = arenas.values().stream()
                 .filter(a -> a.getWorld().equals(world))
                 .findFirst()
                 .orElse(null);
+
+        plugin.debug("[ArenaManager] getArenaForWorld(" + world.getName() + ") → "
+                + (arena != null ? arena.getName() : "null"));
+        return arena;
     }
 
-    public Collection<Arena> getAllArenas() {
-        return Collections.unmodifiableCollection(arenas.values());
-    }
-
-    public Arena getArenaByWorld(World world) {
-        if (world == null) return null;
-        String worldName = world.getName();
-        return arenas.values().stream()
-                .filter(a -> a.getWorld().getName().equalsIgnoreCase(worldName))
-                .findFirst()
-                .orElse(null);
-    }
 }

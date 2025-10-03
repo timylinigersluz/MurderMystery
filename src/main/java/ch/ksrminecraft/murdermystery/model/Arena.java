@@ -12,20 +12,27 @@ public class Arena {
 
     private final String name;
     private final int maxPlayers;
-    private final List<Location> spawnPoints;
+    private final List<Location> arenaGameSpawnPoints; // Spielspawns
     private final World world;
+    private String gameMode = "classic"; // Default
 
     // Optionaler Region-Fallback
     private final Integer minX, maxX, minZ, maxZ;
 
-    // NEU: Arena-Größe (small/mid/large)
+    // Arena-Größe (small/mid/large)
     private final String size;
+
+    // Lobby-Spawn für Arena
+    private Location arenaLobbySpawnPoint;
+
+    // Spectator-Spawn
+    private Location spectatorSpawnPoint;
 
     private final Random random = new Random();
 
     public Arena(String name,
                  int maxPlayers,
-                 List<Location> spawnPoints,
+                 List<Location> arenaGameSpawnPoints,
                  World world,
                  Integer minX,
                  Integer maxX,
@@ -34,7 +41,7 @@ public class Arena {
                  String size) {
         this.name = name;
         this.maxPlayers = maxPlayers;
-        this.spawnPoints = spawnPoints;
+        this.arenaGameSpawnPoints = arenaGameSpawnPoints;
         this.world = world;
         this.minX = minX;
         this.maxX = maxX;
@@ -43,41 +50,39 @@ public class Arena {
         this.size = size != null ? size.toLowerCase() : "unspecified";
     }
 
-    public String getName() {
-        return name;
+    // --- Getter ---
+    public String getName() { return name; }
+    public int getMaxPlayers() { return maxPlayers; }
+    public List<Location> getArenaGameSpawnPoints() { return arenaGameSpawnPoints; }
+    public World getWorld() { return world; }
+    public String getSize() { return size; }
+
+    // ---- Arena-Lobby ----
+    public Location getArenaLobbySpawnPoint() {
+        return (arenaLobbySpawnPoint != null) ? arenaLobbySpawnPoint : world.getSpawnLocation();
+    }
+    public void setArenaLobbySpawnPoint(Location lobbySpawn) {
+        this.arenaLobbySpawnPoint = lobbySpawn;
     }
 
-    public int getMaxPlayers() {
-        return maxPlayers;
+    // ---- Spectator ----
+    public Location getSpectatorSpawnPoint() {
+        return (spectatorSpawnPoint != null) ? spectatorSpawnPoint : getArenaLobbySpawnPoint(); // Fallback Lobby
+    }
+    public void setSpectatorSpawnPoint(Location spectatorSpawn) {
+        this.spectatorSpawnPoint = spectatorSpawn;
     }
 
-    public List<Location> getSpawnPoints() {
-        return spawnPoints;
-    }
-
-    public World getWorld() {
-        return world;
-    }
-
-    public String getSize() {
-        return size;
-    }
-
-    /**
-     * Gibt einen zufälligen Spawn zurück:
-     * 1. Config-Spawns
-     * 2. Zufälliger Punkt innerhalb Region (falls gesetzt)
-     * 3. Welt-Spawn
-     */
-    public Location getRandomSpawn() {
-        // 1. Vordefinierte Spawnpunkte
-        if (spawnPoints != null && !spawnPoints.isEmpty()) {
-            return spawnPoints.get(random.nextInt(spawnPoints.size()));
+    // ---- Game-Spawns ----
+    public Location getRandomArenaGameSpawn() {
+        // 1. Vordefinierte Spielspawns
+        if (arenaGameSpawnPoints != null && !arenaGameSpawnPoints.isEmpty()) {
+            return arenaGameSpawnPoints.get(random.nextInt(arenaGameSpawnPoints.size()));
         }
 
         // 2. Region fallback
         if (minX != null && maxX != null && minZ != null && maxZ != null && world != null) {
-            for (int i = 0; i < 20; i++) { // 20 Versuche, brauchbaren Block zu finden
+            for (int i = 0; i < 20; i++) {
                 int x = random.nextInt(maxX - minX + 1) + minX;
                 int z = random.nextInt(maxZ - minZ + 1) + minZ;
                 int y = world.getHighestBlockYAt(x, z);
@@ -97,7 +102,19 @@ public class Arena {
                 : Bukkit.getWorlds().get(0).getSpawnLocation();
     }
 
+    // ---- Region ----
     public boolean hasRegion() {
         return (minX != null && maxX != null && minZ != null && maxZ != null && world != null);
     }
+
+    // ---- Gamemode ----
+    public String getGameMode() {
+        return gameMode;
+    }
+    public void setGameMode(String gameMode) {
+        this.gameMode = gameMode;
+    }
+
+    
+
 }

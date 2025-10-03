@@ -23,10 +23,17 @@ public class FailSafeManager {
         this.gameManager = gameManager;
     }
 
+    /**
+     * Startet die FailSafe-Überprüfung in einem wiederkehrenden Task.
+     */
     public void start() {
         stop(); // Safety
+        plugin.debug("[FailSafeManager] Task gestartet (alle 10 Sekunden).");
+
         taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
-            if (!gameManager.isGameStarted()) return;
+            if (!gameManager.isGameStarted()) {
+                return; // kein Spam → nur laufen, wenn Spiel aktiv
+            }
 
             for (UUID uuid : gameManager.getPlayers()) {
                 Player p = Bukkit.getPlayer(uuid);
@@ -41,7 +48,7 @@ public class FailSafeManager {
                         boolean hasBow = p.getInventory().containsAtLeast(ItemManager.createDetectiveBow(), 1);
                         if (!hasBow) {
                             p.getInventory().addItem(ItemManager.createDetectiveBow());
-                            plugin.debug("FailSafe: Bogen bei " + p.getName() + " wiederhergestellt.");
+                            plugin.debug("[FailSafeManager] Detective-Bogen bei " + p.getName() + " wiederhergestellt.");
                         }
 
                         // Pfeile prüfen → genau 1
@@ -54,28 +61,38 @@ public class FailSafeManager {
                         if (arrowCount == 0) {
                             p.getInventory().addItem(new ItemStack(Material.ARROW, 1));
                             p.sendMessage(ChatColor.YELLOW + "Dein Detective-Pfeil wurde wiederhergestellt!");
-                            plugin.debug("FailSafe: Kein Pfeil bei " + p.getName() + " → wiederhergestellt.");
+                            plugin.debug("[FailSafeManager] Kein Pfeil bei " + p.getName() + " → 1 Pfeil hinzugefügt.");
                         } else if (arrowCount > 1) {
                             p.getInventory().remove(Material.ARROW);
                             p.getInventory().addItem(new ItemStack(Material.ARROW, 1));
-                            plugin.debug("FailSafe: Pfeile bei " + p.getName() + " still auf genau 1 reduziert (hatte " + arrowCount + ").");
+                            plugin.debug("[FailSafeManager] Pfeile bei " + p.getName() +
+                                    " korrigiert → hatte " + arrowCount + ", jetzt = 1.");
                         }
+                        // ✅ keine Debug-Ausgabe mehr, wenn alles in Ordnung
                     }
                     case MURDERER -> {
                         if (!p.getInventory().contains(ItemManager.createMurdererSword())) {
                             p.getInventory().addItem(ItemManager.createMurdererSword());
                             p.sendMessage(ChatColor.YELLOW + "Dein Murderer-Schwert wurde wiederhergestellt!");
-                            plugin.debug("FailSafe: Schwert bei " + p.getName() + " wiederhergestellt.");
+                            plugin.debug("[FailSafeManager] Murderer-Schwert bei " + p.getName() + " wiederhergestellt.");
                         }
+                        // ✅ keine Debug-Ausgabe mehr, wenn alles in Ordnung
+                    }
+                    case BYSTANDER -> {
+                        // keine Debug-Ausgabe nötig
                     }
                 }
             }
         }, 0L, 200L); // alle 10 Sekunden
     }
 
+    /**
+     * Stoppt den FailSafe-Task.
+     */
     public void stop() {
         if (taskId != -1) {
             Bukkit.getScheduler().cancelTask(taskId);
+            plugin.debug("[FailSafeManager] Task gestoppt.");
             taskId = -1;
         }
     }

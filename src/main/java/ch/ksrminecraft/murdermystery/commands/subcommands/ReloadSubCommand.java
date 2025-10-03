@@ -1,8 +1,8 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -10,48 +10,40 @@ import org.bukkit.entity.Player;
 public class ReloadSubCommand implements SubCommand {
 
     private final ConfigManager configManager;
-    private final GameManager gameManager;
+    private final GameManagerRegistry registry;
 
-    public ReloadSubCommand(ConfigManager configManager, GameManager gameManager) {
+    public ReloadSubCommand(ConfigManager configManager, GameManagerRegistry registry) {
         this.configManager = configManager;
-        this.gameManager = gameManager;
+        this.registry = registry;
     }
 
     @Override
-    public String getName() {
-        return "reload";
-    }
+    public String getName() { return "reload"; }
 
     @Override
-    public String getDescription() {
-        return "Lädt die Config neu (nur Admins)";
-    }
+    public String getDescription() { return "Lädt die Config neu (nur Admins)"; }
 
     @Override
-    public String getUsage() {
-        return "/mm reload";
-    }
+    public String getUsage() { return "/mm reload"; }
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        // nur Admins
+        MurderMystery.getInstance().debug("[Command] /mm reload ausgeführt von " + sender.getName());
+
         if (!(sender instanceof Player p) || !p.hasPermission("murdermystery.admin")) {
-            sender.sendMessage(ChatColor.RED + "Du hast keine Berechtigung, diesen Befehl zu nutzen!");
+            sender.sendMessage(ChatColor.RED + "Keine Berechtigung!");
+            MurderMystery.getInstance().debug("[Command] /mm reload → fehlende Berechtigung bei " + sender.getName());
             return;
         }
 
-        // Config neu laden
+        MurderMystery.getInstance().debug("[Command] /mm reload → starte Config-Reload …");
         configManager.reload();
+        MurderMystery.getInstance().debug("[Command] /mm reload → ConfigManager erfolgreich neu geladen.");
 
-        // Werte ins GameManager übertragen
-        gameManager.setMinPlayers(configManager.getMinPlayers());
-        gameManager.setCountdownTime(configManager.getCountdownSeconds());
-        gameManager.setGameMode(configManager.getGameMode());
-
-        // Arenen ebenfalls neu laden (damit /mm setspawn & Co. direkt wirken)
         MurderMystery.getInstance().getArenaManager().reload();
+        MurderMystery.getInstance().debug("[Command] /mm reload → ArenaManager erfolgreich neu geladen.");
 
         sender.sendMessage(ChatColor.GREEN + "Config erfolgreich neu geladen!");
-        MurderMystery.getInstance().debug("Config wurde von " + sender.getName() + " neu geladen.");
+        MurderMystery.getInstance().debug("[Command] /mm reload von " + sender.getName() + " erfolgreich abgeschlossen.");
     }
 }

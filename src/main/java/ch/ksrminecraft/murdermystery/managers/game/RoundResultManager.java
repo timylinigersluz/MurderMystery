@@ -1,6 +1,7 @@
 package ch.ksrminecraft.murdermystery.managers.game;
 
-import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.managers.effects.CelebrationManager;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
 import org.bukkit.Bukkit;
@@ -9,16 +10,21 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
+/**
+ * Berechnet Punkte & Nachrichten am Ende einer Runde.
+ */
 public class RoundResultManager {
 
-    private final MurderMystery plugin;
+    private final ArenaGame gameManager;
     private final PointsManager pointsManager;
+    private final CelebrationManager celebrationManager;
 
     public enum EndCondition { MURDERER_WIN, DETECTIVE_WIN, TIME_UP }
 
-    public RoundResultManager(MurderMystery plugin, PointsManager pointsManager) {
-        this.plugin = plugin;
+    public RoundResultManager(ArenaGame gameManager, PointsManager pointsManager) {
+        this.gameManager = gameManager;
         this.pointsManager = pointsManager;
+        this.celebrationManager = new CelebrationManager(gameManager.getPlugin());
     }
 
     public void handleRoundEnd(EndCondition condition,
@@ -32,48 +38,41 @@ public class RoundResultManager {
             int total = 0;
             List<String> details = new ArrayList<>();
 
-            // Überlebensstatus über GameManager ermitteln
-            boolean survived = plugin.getGameManager().getPlayers().contains(uuid);
-            plugin.debug("Überlebensstatus für " + Bukkit.getOfflinePlayer(uuid).getName() + ": " + survived);
+            boolean survived = gameManager.getPlayers().contains(uuid);
+            gameManager.getConfigManager().debug("Überlebensstatus für "
+                    + Bukkit.getOfflinePlayer(uuid).getName() + ": " + survived);
 
-            // --- Rollen-spezifisch ---
             switch (role) {
                 case MURDERER -> {
                     int kills = roundStats.getKills(uuid);
-                    int killPoints = kills * plugin.getConfigManager().getPointsKillAsMurderer();
+                    int killPoints = kills * gameManager.getConfigManager().getPointsKillAsMurderer();
 
                     if (condition == EndCondition.MURDERER_WIN) {
-                        total += plugin.getConfigManager().getPointsWin();
+                        total += gameManager.getConfigManager().getPointsWin();
                         details.add(ChatColor.GRAY + "Spielausgang: "
-                                + ChatColor.GREEN + "Gewonnen -> " + plugin.getConfigManager().getPointsWin());
-
+                                + ChatColor.GREEN + "Gewonnen -> " + gameManager.getConfigManager().getPointsWin());
                         if (kills > 0) {
                             total += killPoints;
-                            details.add(ChatColor.GRAY + "Kills: "
-                                    + ChatColor.GREEN + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: " + ChatColor.GREEN + kills + " -> " + killPoints);
                         }
                     } else if (condition == EndCondition.DETECTIVE_WIN) {
                         details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
                         if (kills > 0) {
                             total += killPoints;
-                            details.add(ChatColor.GRAY + "Kills: "
-                                    + ChatColor.GREEN + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: " + ChatColor.GREEN + kills + " -> " + killPoints);
                         } else {
-                            int consolation = plugin.getConfigManager().getPointsConsolation();
+                            int consolation = gameManager.getConfigManager().getPointsConsolation();
                             total += consolation;
-                            details.add(ChatColor.GRAY + "Trostpunkte: "
-                                    + ChatColor.GREEN + consolation);
+                            details.add(ChatColor.GRAY + "Trostpunkte: " + ChatColor.GREEN + consolation);
                         }
                     } else if (condition == EndCondition.TIME_UP) {
-                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        int tie = gameManager.getConfigManager().getPointsTimeUp();
                         total += tie;
                         details.add(ChatColor.GRAY + "Spielausgang: "
                                 + ChatColor.YELLOW + "Unentschieden -> " + tie);
-
                         if (kills > 0) {
                             total += killPoints;
-                            details.add(ChatColor.GRAY + "Kills: "
-                                    + ChatColor.GREEN + kills + " -> " + killPoints);
+                            details.add(ChatColor.GRAY + "Kills: " + ChatColor.GREEN + kills + " -> " + killPoints);
                         }
                     }
                 }
@@ -81,34 +80,41 @@ public class RoundResultManager {
                 case DETECTIVE -> {
                     if (condition == EndCondition.DETECTIVE_WIN) {
                         if (survived) {
-                            total += plugin.getConfigManager().getPointsWin();
+                            // Sieg für aktuellen Detective
+                            total += gameManager.getConfigManager().getPointsWin();
                             details.add(ChatColor.GRAY + "Spielausgang: "
-                                    + ChatColor.GREEN + "Gewonnen -> " + plugin.getConfigManager().getPointsWin());
+                                    + ChatColor.GREEN + "Gewonnen -> " + gameManager.getConfigManager().getPointsWin());
 
-                            total += plugin.getConfigManager().getPointsKillMurderer();
-                            details.add(ChatColor.GRAY + "Mörder erwischt: "
-                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsKillMurderer());
+                            // Hat dieser Detective den Murderer gekillt?
+                            int kills = roundStats.getKills(uuid);
+                            if (kills > 0) {
+                                int bonus = gameManager.getConfigManager().getPointsKillMurderer();
+                                total += bonus;
+                                details.add(ChatColor.GRAY + "Mörder getötet: "
+                                        + ChatColor.GREEN + "ja -> " + bonus);
+                            } else {
+                                details.add(ChatColor.GRAY + "Mörder getötet: " + ChatColor.RED + "nein");
+                            }
                         } else {
-                            total += plugin.getConfigManager().getPointsCoWin();
+                            // Detective tot → Co-Win, wie bisher
+                            total += gameManager.getConfigManager().getPointsCoWin();
                             details.add(ChatColor.GRAY + "Spielausgang: "
-                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + gameManager.getConfigManager().getPointsCoWin());
                         }
                     } else if (condition == EndCondition.MURDERER_WIN) {
                         details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
-                        int consolation = plugin.getConfigManager().getPointsConsolation();
+                        int consolation = gameManager.getConfigManager().getPointsConsolation();
                         total += consolation;
-                        details.add(ChatColor.GRAY + "Trostpunkte: "
-                                + ChatColor.GREEN + consolation);
+                        details.add(ChatColor.GRAY + "Trostpunkte: " + ChatColor.GREEN + consolation);
                     } else if (condition == EndCondition.TIME_UP) {
-                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        int tie = gameManager.getConfigManager().getPointsTimeUp();
                         total += tie;
                         details.add(ChatColor.GRAY + "Spielausgang: "
                                 + ChatColor.YELLOW + "Unentschieden -> " + tie);
-
                         if (survived) {
-                            total += plugin.getConfigManager().getPointsSurvive();
+                            total += gameManager.getConfigManager().getPointsSurvive();
                             details.add(ChatColor.GRAY + "Überlebt: "
-                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
+                                    + ChatColor.GREEN + "ja -> " + gameManager.getConfigManager().getPointsSurvive());
                         } else {
                             details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
@@ -116,51 +122,46 @@ public class RoundResultManager {
 
                     int fails = roundStats.getDetectiveInnocentKills(uuid);
                     if (fails > 0) {
-                        int penalty = fails * plugin.getConfigManager().getPointsKillInnocent();
+                        int penalty = fails * gameManager.getConfigManager().getPointsKillInnocent();
                         total += penalty;
-                        details.add(ChatColor.GRAY + "Fehlabschüsse: "
-                                + ChatColor.RED + fails + " -> -" + Math.abs(penalty));
+                        details.add(ChatColor.GRAY + "Fehlabschüsse: " + ChatColor.RED + fails + " -> -" + Math.abs(penalty));
                     }
                 }
 
                 case BYSTANDER -> {
                     if (condition == EndCondition.DETECTIVE_WIN) {
                         if (survived) {
-                            total += plugin.getConfigManager().getPointsCoWin();
+                            total += gameManager.getConfigManager().getPointsCoWin();
                             details.add(ChatColor.GRAY + "Spielausgang: "
-                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
-
-                            total += plugin.getConfigManager().getPointsSurvive();
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + gameManager.getConfigManager().getPointsCoWin());
+                            total += gameManager.getConfigManager().getPointsSurvive();
                             details.add(ChatColor.GRAY + "Überlebt: "
-                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
+                                    + ChatColor.GREEN + "ja -> " + gameManager.getConfigManager().getPointsSurvive());
                         } else {
-                            total += plugin.getConfigManager().getPointsCoWin();
+                            total += gameManager.getConfigManager().getPointsCoWin();
                             details.add(ChatColor.GRAY + "Spielausgang: "
-                                    + ChatColor.GREEN + "Co-Gewinner -> " + plugin.getConfigManager().getPointsCoWin());
+                                    + ChatColor.GREEN + "Co-Gewinner -> " + gameManager.getConfigManager().getPointsCoWin());
                             details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
                     } else if (condition == EndCondition.MURDERER_WIN) {
                         details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.RED + "Verloren");
                         if (!survived) {
-                            int consolation = plugin.getConfigManager().getPointsConsolation();
+                            int consolation = gameManager.getConfigManager().getPointsConsolation();
                             total += consolation;
                             details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
-                            details.add(ChatColor.GRAY + "Trostpunkte: "
-                                    + ChatColor.GREEN + consolation);
+                            details.add(ChatColor.GRAY + "Trostpunkte: " + ChatColor.GREEN + consolation);
                         } else {
                             details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.GREEN + "ja");
                             details.add(ChatColor.GRAY + "→ keine Punkte");
                         }
                     } else if (condition == EndCondition.TIME_UP) {
-                        int tie = plugin.getConfigManager().getPointsTimeUp();
+                        int tie = gameManager.getConfigManager().getPointsTimeUp();
                         total += tie;
-                        details.add(ChatColor.GRAY + "Spielausgang: "
-                                + ChatColor.YELLOW + "Unentschieden -> " + tie);
-
+                        details.add(ChatColor.GRAY + "Spielausgang: " + ChatColor.YELLOW + "Unentschieden -> " + tie);
                         if (survived) {
-                            total += plugin.getConfigManager().getPointsSurvive();
+                            total += gameManager.getConfigManager().getPointsSurvive();
                             details.add(ChatColor.GRAY + "Überlebt: "
-                                    + ChatColor.GREEN + "ja -> " + plugin.getConfigManager().getPointsSurvive());
+                                    + ChatColor.GREEN + "ja -> " + gameManager.getConfigManager().getPointsSurvive());
                         } else {
                             details.add(ChatColor.GRAY + "Überlebt: " + ChatColor.RED + "nein");
                         }
@@ -168,11 +169,9 @@ public class RoundResultManager {
                 }
             }
 
-            // keine negativen Ergebnisse
             total = Math.max(0, total);
             roundPoints.put(uuid, total);
 
-            // --- Nachricht an Spieler ---
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
                 p.sendMessage(ChatColor.YELLOW + "===== Deine Runde ========");
@@ -194,14 +193,12 @@ public class RoundResultManager {
         List<UUID> sorted = new ArrayList<>(roundPoints.keySet());
         sorted.sort((a, b) -> roundPoints.get(b) - roundPoints.get(a));
 
-        Bukkit.broadcastMessage("§6===== Rundenstatistik =====");
-
+        Bukkit.broadcastMessage("§6===== Rundenstatistik (" + gameManager.getArena().getName() + ") =====");
         for (UUID id : sorted) {
             String name = Bukkit.getOfflinePlayer(id).getName();
             if (name == null) name = id.toString();
 
             int pts = roundPoints.get(id);
-
             ChatColor color;
             if (condition == EndCondition.TIME_UP) {
                 color = ChatColor.YELLOW;
@@ -217,10 +214,11 @@ public class RoundResultManager {
                 }
                 color = winner ? ChatColor.GREEN : ChatColor.RED;
             }
-
             Bukkit.broadcastMessage(color + "• " + name + " | " + pts + " Punkte");
         }
-
         Bukkit.broadcastMessage("§6========================");
+
+        // --- Celebration starten ---
+        celebrationManager.startCelebration(roles.keySet(), condition, roles);
     }
 }

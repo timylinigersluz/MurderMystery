@@ -1,18 +1,19 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 public class LeaveSubCommand implements SubCommand {
 
-    private final GameManager gameManager;
+    private final GameManagerRegistry registry;
     private static final String PERMISSION = "murdermystery.leave";
 
-    public LeaveSubCommand(GameManager gameManager) {
-        this.gameManager = gameManager;
+    public LeaveSubCommand(GameManagerRegistry registry) {
+        this.registry = registry;
     }
 
     @Override
@@ -22,7 +23,7 @@ public class LeaveSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Verlasse eine MurderMystery-Runde";
+        return "Verlasse eine MurderMystery-Runde oder gehe zurück in die MainLobby";
     }
 
     @Override
@@ -34,21 +35,27 @@ public class LeaveSubCommand implements SubCommand {
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(ChatColor.RED + "Nur Spieler können /mm leave nutzen.");
+            MurderMystery.getInstance().debug("[Command] /mm leave von Konsole → abgebrochen (nur Spieler).");
             return;
         }
 
         if (!player.hasPermission(PERMISSION)) {
-            player.sendMessage(ChatColor.RED + "Du hast keine Berechtigung, eine Runde zu verlassen.");
+            player.sendMessage(ChatColor.RED + "Du hast keine Berechtigung, /mm leave zu nutzen.");
+            MurderMystery.getInstance().debug("[Command] /mm leave von " + player.getName() + " → fehlende Permission.");
             return;
         }
 
-        if (!gameManager.isPlayerInGame(player)) {
-            player.sendMessage(ChatColor.YELLOW + "Du befindest dich in keiner laufenden Runde.");
-            return;
-        }
+        ArenaGame game = registry.findArenaOfPlayer(player);
 
-        MurderMystery.getInstance().debug("Spieler " + player.getName() + " nutzt /mm leave");
-        gameManager.handleLeave(player);
-        player.sendMessage(ChatColor.YELLOW + "Du hast die MurderMystery-Runde verlassen.");
+        if (game != null) {
+            MurderMystery.getInstance().debug("[Command] /mm leave von " + player.getName() + " → verlässt Arena '" + game.getArena().getName() + "'.");
+            game.handleLeave(player);
+            MurderMystery.getInstance().getMapManager().teleportToMainLobby(player);
+            player.sendMessage(ChatColor.YELLOW + "Du hast die MurderMystery-Runde verlassen.");
+        } else {
+            MurderMystery.getInstance().debug("[Command] /mm leave von " + player.getName() + " → war in keiner Arena, teleportiere MainLobby.");
+            MurderMystery.getInstance().getMapManager().teleportToMainLobby(player);
+            player.sendMessage(ChatColor.GREEN + "Du bist zurück in der MainLobby.");
+        }
     }
 }

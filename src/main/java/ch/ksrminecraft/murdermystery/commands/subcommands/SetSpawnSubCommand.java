@@ -1,9 +1,11 @@
 package ch.ksrminecraft.murdermystery.commands.subcommands;
 
-import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
+import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.model.Arena;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -26,89 +28,99 @@ public class SetSpawnSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Fügt einen Spawnpunkt in einer Arena oder der Lobby hinzu.";
+        return "Fügt einen Arena-Spawnpunkt oder den Spectator-Spawn hinzu.";
     }
 
     @Override
     public String getUsage() {
-        return "/mm setspawn <arena|lobby>";
+        return "/mm setspawn <arena> [spectator]";
     }
 
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(ChatColor.RED + "Nur Spieler können diesen Befehl ausführen.");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von Konsole → abgebrochen (nur Spieler).");
             return;
         }
         if (!player.hasPermission("murdermystery.admin")) {
             player.sendMessage(ChatColor.RED + "Dafür hast du keine Berechtigung!");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName() + " → fehlende Permission.");
             return;
         }
 
         if (args.length < 2) {
             player.sendMessage(ChatColor.RED + "Verwendung: " + getUsage());
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName() + " → kein ArenaName angegeben.");
             return;
         }
 
-        String target = args[1].toLowerCase();
-
-        // --- Lobby ---
-        if (target.equals("lobby")) {
-            if (!player.getWorld().getName().equalsIgnoreCase(configManager.getLobbyWorld())) {
-                player.sendMessage(ChatColor.RED + "Du musst dich in der Lobby-Welt befinden ("
-                        + configManager.getLobbyWorld() + ")!");
-                return;
-            }
-
-            String entry = player.getLocation().getBlockX() + "," +
-                    player.getLocation().getBlockY() + "," +
-                    player.getLocation().getBlockZ();
-
-            List<String> spawns = configManager.getLobbySpawns();
-            spawns.add(entry);
-            configManager.setLobbySpawns(spawns);
-
-            player.sendMessage(ChatColor.GREEN + "Spawnpunkt in der Lobby hinzugefügt!");
-            player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Lobby-Spawns: " + spawns.size());
-            configManager.debug("SetSpawn: Neuer Lobby-Spawn bei " + entry);
-            return;
-        }
-
-        // --- Arena ---
-        Arena arena = arenaManager.getArena(target);
+        String arenaName = args[1].toLowerCase();
+        Arena arena = arenaManager.getArena(arenaName);
         if (arena == null) {
-            player.sendMessage(ChatColor.RED + "Arena '" + target + "' existiert nicht!");
+            player.sendMessage(ChatColor.RED + "Arena '" + arenaName + "' existiert nicht!");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName() + " → Arena '" + arenaName + "' nicht gefunden.");
             return;
         }
 
-        // Sicherstellen, dass Arena überhaupt eine Welt hat
         if (arena.getWorld() == null) {
-            player.sendMessage(ChatColor.RED + "Arena '" + target + "' hat keine gültige Welt in der Config!");
+            player.sendMessage(ChatColor.RED + "Arena '" + arenaName + "' hat keine gültige Welt!");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName() + " → Arena '" + arenaName + "' ohne gültige Welt.");
             return;
         }
 
-        // Vergleich über den Welt-Namen statt World-Objekt
         String playerWorld = player.getWorld().getName();
         String arenaWorld = arena.getWorld().getName();
         if (!arenaWorld.equalsIgnoreCase(playerWorld)) {
             player.sendMessage(ChatColor.RED + "Du musst dich in der Welt '" + arenaWorld
                     + "' befinden (aktuell: " + playerWorld + ")!");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName() + " → falsche Welt (Arena=" + arenaWorld + ", Spieler=" + playerWorld + ")");
             return;
         }
 
-        String entry = player.getLocation().getBlockX() + "," +
-                player.getLocation().getBlockY() + "," +
-                player.getLocation().getBlockZ();
+        Location loc = player.getLocation();
 
-        List<String> spawns = configManager.getArenaSpawns(target);
-        spawns.add(entry);
-        configManager.setArenaSpawns(target, spawns);
+        // Mit yaw und pitch
+        String entry = loc.getBlockX() + "," +
+                loc.getBlockY() + "," +
+                loc.getBlockZ() + "," +
+                loc.getYaw() + "," +
+                loc.getPitch();
 
-        arenaManager.reload();
+        List<String> spawns = configManager.getArenaGameSpawns(arenaName);
 
-        player.sendMessage(ChatColor.GREEN + "Spawnpunkt hinzugefügt in Arena '" + target + "'.");
-        player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Spawns: " +
-                arenaManager.getArena(target).getSpawnPoints().size());
-        configManager.debug("SetSpawn: Neuer Spawn in Arena '" + target + "' bei " + entry);
+        if (args.length >= 3 && args[2].equalsIgnoreCase("spectator")) {
+            // Spectator-Spawn → vorherige entfernen
+            spawns.removeIf(s -> s.endsWith(",SPECTATOR"));
+            entry = entry + ",SPECTATOR";
+            spawns.add(entry);
+
+            // Speichern
+            configManager.setArenaGameSpawns(arenaName, spawns);
+
+            // Arena-Objekt aktualisieren
+            arena.setSpectatorSpawnPoint(loc);
+
+            player.sendMessage(ChatColor.GREEN + "Spectator-Spawn für Arena '" + arenaName + "' gesetzt!");
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName()
+                    + " → Spectator-Spawn gesetzt für Arena '" + arenaName
+                    + "' @ " + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ());
+        } else {
+            // Normaler Game-Spawn
+            spawns.add(entry);
+            configManager.setArenaGameSpawns(arenaName, spawns);
+
+            // Arena neu laden, damit Liste aktualisiert ist
+            arenaManager.reload();
+
+            int spawnCount = arenaManager.getArena(arenaName).getArenaGameSpawnPoints().size();
+            player.sendMessage(ChatColor.GREEN + "Spawnpunkt in Arena '" + arenaName + "' hinzugefügt!");
+            player.sendMessage(ChatColor.YELLOW + "Aktuelle Anzahl Spawns: " + spawnCount);
+
+            MurderMystery.getInstance().debug("[Command] /mm setspawn von " + player.getName()
+                    + " → GameSpawn gesetzt für Arena '" + arenaName
+                    + "' @ " + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ()
+                    + " (Total jetzt " + spawnCount + " Spawns).");
+        }
     }
 }

@@ -1,8 +1,9 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
-import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
+import ch.ksrminecraft.murdermystery.model.QuitTracker;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -11,11 +12,11 @@ import org.bukkit.event.player.PlayerQuitEvent;
 public class PlayerQuitListener implements Listener {
 
     private final MurderMystery plugin;
-    private final GameManager gameManager;
+    private final GameManagerRegistry registry;
 
-    public PlayerQuitListener(GameManager gameManager, ConfigManager configManager) {
+    public PlayerQuitListener(GameManagerRegistry registry) {
         this.plugin = MurderMystery.getInstance();
-        this.gameManager = gameManager;
+        this.registry = registry;
     }
 
     @EventHandler
@@ -23,14 +24,16 @@ public class PlayerQuitListener implements Listener {
         Player quitter = e.getPlayer();
         plugin.debug("Spieler " + quitter.getName() + " hat den Server verlassen.");
 
-        if (!gameManager.isGameStarted()) {
-            plugin.debug("Spiel läuft nicht. Quit von " + quitter.getName() + " wird ignoriert.");
-            return;
-        }
+        // Immer im QuitTracker markieren (wird bei Join wieder gecleart)
+        QuitTracker.mark(quitter);
 
-        if (gameManager.isPlayerInGame(quitter)) {
-            plugin.debug("Quit während Spiel → handleLeave()");
-            gameManager.handleLeave(quitter);
+        // Arena finden
+        ArenaGame manager = registry.findArenaOfPlayer(quitter);
+        if (manager != null && manager.isGameStarted()) {
+            plugin.debug("Quit während Spiel in Arena " + manager.getArena().getName() + " → handleLeave()");
+            manager.handleLeave(quitter);
+        } else {
+            plugin.debug("Quit außerhalb laufender Arenen → nur im QuitTracker vermerkt.");
         }
     }
 }

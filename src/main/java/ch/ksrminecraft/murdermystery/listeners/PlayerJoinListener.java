@@ -1,15 +1,12 @@
 package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
 import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
-import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
 import ch.ksrminecraft.murdermystery.managers.support.MapManager;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.QuitTracker;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -18,14 +15,12 @@ import org.bukkit.event.player.PlayerJoinEvent;
 public class PlayerJoinListener implements Listener {
 
     private final MurderMystery plugin;
-    private final GameManager gameManager;
-    private final ConfigManager configManager;
+    private final GameManagerRegistry registry;
     private final MapManager mapManager;
 
-    public PlayerJoinListener(GameManager gameManager, ConfigManager configManager, MapManager mapManager) {
+    public PlayerJoinListener(GameManagerRegistry registry, MapManager mapManager) {
         this.plugin = MurderMystery.getInstance();
-        this.gameManager = gameManager;
-        this.configManager = configManager;
+        this.registry = registry;
         this.mapManager = mapManager;
     }
 
@@ -34,50 +29,30 @@ public class PlayerJoinListener implements Listener {
         Player p = e.getPlayer();
         plugin.debug("Spieler " + p.getName() + " hat den Server betreten.");
 
-        // Falls Spieler während eines Spiels gequitted ist → zurück in MainWorld setzen
+        // Falls Spieler während eines Spiels gequitted ist → zurück in MainLobby setzen
         if (QuitTracker.hasQuit(p)) {
             QuitTracker.clear(p);
-            sendToMainWorld(p);
+            mapManager.teleportToMainLobby(p);
             return;
         }
 
-        // Wenn Spiel läuft → Spieler bleibt in Lobby und sieht Game-BossBar
-        if (gameManager.isGameStarted()) {
-            sendToLobby(p);
+        // Standard: Spieler immer in MainLobby
+        mapManager.teleportToMainLobby(p);
+
+        // BossBar: Wenn irgendwo ein Spiel läuft → Spieler soll Game-BossBar sehen
+        boolean anyGameRunning = registry.getAllManagers().values().stream()
+                .anyMatch(ArenaGame::isGameStarted);
+
+        if (anyGameRunning) {
             p.sendMessage(ChatColor.YELLOW + "Es läuft gerade eine MurderMystery-Runde.");
             p.sendMessage(ChatColor.GRAY + "Bitte warte in der Lobby, bis die Runde vorbei ist.");
-            gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.GAME);
-            return;
-        }
-
-        // Wenn kein Spiel läuft, aber Countdown schon aktiv → Lobby-BossBar anzeigen
-        gameManager.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY);
-
-        // Spieler in die Lobby teleportieren (random spawn)
-        sendToLobby(p);
-    }
-
-    private void sendToLobby(Player p) {
-        String lobbyWorldName = configManager.getLobbyWorld();
-        World lobby = Bukkit.getWorld(lobbyWorldName);
-        if (lobby != null) {
-            Location spawn = mapManager.getRandomLobbySpawn(lobby);
-            p.teleport(spawn);
-            plugin.debug("Spieler " + p.getName() + " wurde in die Lobby teleportiert → " +
-                    String.format("(%.1f, %.1f, %.1f)", spawn.getX(), spawn.getY(), spawn.getZ()));
+            // Irgendeinen Manager nehmen für BossBar (globale Anzeige)
+            registry.getAllManagers().values().iterator().next()
+                    .getBossBarManager().addPlayer(p, BossBarManager.Mode.GAME);
         } else {
-            plugin.getLogger().severe("Lobby-Welt '" + lobbyWorldName + "' nicht gefunden!");
-        }
-    }
-
-    private void sendToMainWorld(Player p) {
-        String mainWorldName = configManager.getMainWorld();
-        World main = Bukkit.getWorld(mainWorldName);
-        if (main != null) {
-            p.teleport(main.getSpawnLocation());
-            plugin.debug("Spieler " + p.getName() + " wurde in die Hauptwelt teleportiert.");
-        } else {
-            plugin.getLogger().severe("Hauptwelt '" + mainWorldName + "' nicht gefunden!");
+            // Kein Spiel läuft → Lobby-BossBar anzeigen
+            registry.getAllManagers().values().forEach(mgr ->
+                    mgr.getBossBarManager().addPlayer(p, BossBarManager.Mode.LOBBY));
         }
     }
 }

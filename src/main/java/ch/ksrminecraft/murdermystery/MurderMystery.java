@@ -4,9 +4,10 @@ import ch.ksrminecraft.murdermystery.commands.MurderMysteryCommand;
 import ch.ksrminecraft.murdermystery.listeners.*;
 import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
 import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
-import ch.ksrminecraft.murdermystery.managers.game.PointsManager;
+import ch.ksrminecraft.murdermystery.managers.game.*;
 import ch.ksrminecraft.murdermystery.managers.support.MapManager;
+import ch.ksrminecraft.murdermystery.model.Arena;
+import ch.ksrminecraft.murdermystery.model.QuitTracker;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -18,11 +19,11 @@ import java.util.List;
 public class MurderMystery extends JavaPlugin {
 
     private static MurderMystery instance;
-    private GameManager gameManager;
     private PointsManager pointsManager;
     private ArenaManager arenaManager;
     private ConfigManager configManager;
     private MapManager mapManager;
+    private GameManagerRegistry gameManagerRegistry;
 
     private boolean debugEnabled;
     private boolean murdererKilledByBow = false;
@@ -47,31 +48,33 @@ public class MurderMystery extends JavaPlugin {
         this.arenaManager = new ArenaManager(this, configManager);
         this.pointsManager = new PointsManager(getLogger(), this);
         this.mapManager = new MapManager(this, arenaManager);
-        this.gameManager = new GameManager(pointsManager, arenaManager, this, configManager);
-        gameManager.setMinPlayers(configManager.getMinPlayers());
-        gameManager.setCountdownTime(configManager.getCountdownSeconds());
-        gameManager.setGameMode(configManager.getGameMode());
+
+        // Registry für Multi-Arena
+        this.gameManagerRegistry = new GameManagerRegistry(this);
+        for (Arena arena : arenaManager.getAllArenas()) {
+            gameManagerRegistry.registerArena(arena, pointsManager, configManager, mapManager);
+        }
 
         // MessageLimiter
         MessageLimiter.init(this);
 
-        // === Listener registrieren ===
-        getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManager, configManager, mapManager), this);
-        getServer().getPluginManager().registerEvents(new PlayerQuitListener(gameManager, configManager), this);
-        getServer().getPluginManager().registerEvents(new SignListener(this), this);
-        getServer().getPluginManager().registerEvents(new DeathMessageListener(this), this);
+        // === Listener registrieren (alle mit Registry arbeiten) ===
+        getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManagerRegistry, mapManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerQuitListener(gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new SignListener(this, gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new DeathMessageListener(this, gameManagerRegistry), this);
         getServer().getPluginManager().registerEvents(new ItemProtectListener(configManager), this);
         getServer().getPluginManager().registerEvents(new EnvironmentProtectListener(this), this);
-        getServer().getPluginManager().registerEvents(new SwordListener(this), this);
-        getServer().getPluginManager().registerEvents(new BowListener(this), this);
-        getServer().getPluginManager().registerEvents(new SpecialItemListener(this), this);
-        getServer().getPluginManager().registerEvents(new AdvancementBlockListener(this), this);
-        getServer().getPluginManager().registerEvents(new CommandBlockerListener(this), this);
+        getServer().getPluginManager().registerEvents(new SwordListener(this, gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new BowListener(this, gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new SpecialItemListener(this, gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new AdvancementBlockListener(this, gameManagerRegistry), this);
+        getServer().getPluginManager().registerEvents(new CommandBlockerListener(this, gameManagerRegistry), this);
 
         debug("Alle Listener erfolgreich registriert.");
 
         // === Command-Registrierung ===
-        MurderMysteryCommand mmCommand = new MurderMysteryCommand(this, gameManager, configManager);
+        MurderMysteryCommand mmCommand = new MurderMysteryCommand(this, gameManagerRegistry, configManager);
         getServer().getCommandMap().register("mm", new Command("mm") {
             @Override
             public boolean execute(@NotNull CommandSender sender,
@@ -91,12 +94,19 @@ public class MurderMystery extends JavaPlugin {
         debug("MurderMystery Plugin erfolgreich aktiviert.");
     }
 
+    @Override
+    public void onDisable() {
+        QuitTracker.clearAll();
+        getLogger().info("MurderMystery deaktiviert.");
+    }
+
     // === Getter ===
     public static MurderMystery getInstance() { return instance; }
-    public GameManager getGameManager() { return gameManager; }
     public PointsManager getPointsManager() { return pointsManager; }
     public ArenaManager getArenaManager() { return arenaManager; }
     public ConfigManager getConfigManager() { return configManager; }
+    public GameManagerRegistry getGameManagerRegistry() { return gameManagerRegistry; }
+    public MapManager getMapManager() { return mapManager; }  // ✅ neu
 
     // === Status für Murderer-Bogen ===
     public boolean isMurdererKilledByBow() { return murdererKilledByBow; }

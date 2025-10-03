@@ -1,11 +1,17 @@
 package ch.ksrminecraft.murdermystery.managers.effects;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
+import ch.ksrminecraft.murdermystery.managers.game.RoundResultManager;
+import ch.ksrminecraft.murdermystery.model.Role;
 import org.bukkit.*;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.meta.FireworkMeta;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class CelebrationManager {
 
@@ -15,11 +21,48 @@ public class CelebrationManager {
         this.plugin = plugin;
     }
 
-    public void launchFireworks(Player player) {
-        if (player == null || !player.isOnline()) return;
+    /**
+     * Startet die Celebration nach Spielende.
+     *
+     * @param players    Alle Spieler der Arena
+     * @param condition  Endbedingung (Murderer, Detective, Timeout)
+     * @param roles      Rollen-Zuordnung der Spieler
+     */
+    public void startCelebration(Set<UUID> players,
+                                 RoundResultManager.EndCondition condition,
+                                 Map<UUID, Role> roles) {
 
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null || !p.isOnline()) continue;
+
+            boolean isWinner = isWinner(roles.get(uuid), condition);
+
+            if (isWinner) {
+                launchFireworks(p);
+                p.sendTitle(ChatColor.GREEN + "Sieg!", ChatColor.YELLOW + "Du hast gewonnen!", 10, 60, 10);
+                p.sendMessage(ChatColor.GREEN + "Glückwunsch, du hast gewonnen!");
+            } else {
+                playLoserSound(p);
+                p.sendTitle(ChatColor.RED + "Niederlage", ChatColor.GRAY + "Vielleicht nächstes Mal!", 10, 60, 10);
+                p.sendMessage(ChatColor.RED + "Leider verloren.");
+            }
+        }
+    }
+
+    private boolean isWinner(Role role, RoundResultManager.EndCondition condition) {
+        if (role == null) return false;
+        return switch (condition) {
+            case MURDERER_WIN -> role == Role.MURDERER;
+            case DETECTIVE_WIN -> role == Role.DETECTIVE || role == Role.BYSTANDER;
+            case TIME_UP -> false;
+        };
+    }
+
+    /** Feuerwerk für Sieger */
+    public void launchFireworks(Player player) {
         for (int i = 0; i < 3; i++) {
-            int delay = i * 20; // jede Rakete um 1 Sekunde versetzt
+            int delay = i * 20;
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 Location loc = player.getLocation().add(0, 1, 0);
                 Firework firework = (Firework) loc.getWorld().spawnEntity(loc, EntityType.FIREWORK_ROCKET);
@@ -32,14 +75,14 @@ public class CelebrationManager {
                         .trail(true)
                         .flicker(true)
                         .build());
-                meta.setPower(1); // kurze Flugzeit
+                meta.setPower(1);
                 firework.setFireworkMeta(meta);
             }, delay);
         }
     }
 
+    /** Sound für Verlierer */
     public void playLoserSound(Player player) {
-        if (player == null || !player.isOnline()) return;
         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
     }
 }

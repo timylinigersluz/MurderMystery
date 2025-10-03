@@ -32,4 +32,10 @@ public class QuitTracker {
             MurderMystery.getInstance().debug("Versuch Spieler " + p.getName() + " aus QuitTracker zu entfernen, war aber nicht markiert.");
         }
     }
+
+    // ALLE gespeicherten Spieler leeren (z. B. beim Plugin-Disable)
+    public static void clearAll() {
+        quitDuringGame.clear();
+        MurderMystery.getInstance().debug("QuitTracker wurde komplett geleert.");
+    }
 }

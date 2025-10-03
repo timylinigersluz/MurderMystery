@@ -36,16 +36,25 @@ public class HelpSubCommand implements SubCommand {
         boolean isAdmin = sender instanceof Player p && p.hasPermission("murdermystery.admin");
 
         for (SubCommand sub : subCommands) {
-            String name = sub.getName();
+            String name = sub.getName().toLowerCase();
 
-            // Admin-Befehle nur für Admins
-            if ((name.equalsIgnoreCase("forcestart") || name.equalsIgnoreCase("stop")) && !isAdmin) {
+            // Admin-Befehle: nur anzeigen, wenn Admin
+            if (isAdminOnly(name) && !isAdmin) {
                 continue;
             }
 
-            sender.sendMessage(ChatColor.YELLOW + sub.getUsage() + ChatColor.GRAY + " - " + ChatColor.WHITE + sub.getDescription());
+            sender.sendMessage(ChatColor.YELLOW + sub.getUsage()
+                    + ChatColor.GRAY + " - "
+                    + ChatColor.WHITE + sub.getDescription());
         }
 
         sender.sendMessage(ChatColor.GOLD + "===============================");
+    }
+
+    private boolean isAdminOnly(String name) {
+        return switch (name) {
+            case "forcestart", "stop", "reload", "setspawn", "setlobbyspawn", "reset" -> true;
+            default -> false;
+        };
     }
 }

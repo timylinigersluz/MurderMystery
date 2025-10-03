@@ -2,8 +2,8 @@ package ch.ksrminecraft.murdermystery.commands.subcommands;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.listeners.SignListener;
-import ch.ksrminecraft.murdermystery.managers.game.GameManager;
-import org.bukkit.Bukkit;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -11,11 +11,11 @@ import org.bukkit.entity.Player;
 public class ResetSubCommand implements SubCommand {
 
     private final MurderMystery plugin;
-    private final GameManager gameManager;
+    private final GameManagerRegistry registry;
 
-    public ResetSubCommand(MurderMystery plugin, GameManager gameManager) {
+    public ResetSubCommand(MurderMystery plugin, GameManagerRegistry registry) {
         this.plugin = plugin;
-        this.gameManager = gameManager;
+        this.registry = registry;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class ResetSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/mm reset";
+        return "/mm reset [arenaName]";
     }
 
     @Override
@@ -40,18 +40,39 @@ public class ResetSubCommand implements SubCommand {
             return;
         }
 
-        // Runde zurücksetzen
-        gameManager.resetGame();
-
-        // Alle Spieler in die MainWorld teleportieren
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            gameManager.getPlayerManager().getMapManager().teleportToMainWorld(p);
+        ArenaGame game = null;
+        if (args.length >= 2) {
+            game = registry.getGameManager(args[1].toLowerCase());
+        } else if (sender instanceof Player p) {
+            game = registry.findArenaOfPlayer(p);
         }
 
-        // Join-Signs aktualisieren
-        SignListener.updateJoinSigns(plugin);
+        if (game == null) {
+            sender.sendMessage(ChatColor.RED + "Keine passende Arena gefunden!");
+            return;
+        }
 
-        sender.sendMessage(ChatColor.GREEN + "MurderMystery wurde komplett zurückgesetzt.");
-        plugin.debug("Reset-Befehl von " + sender.getName() + " ausgeführt.");
+        // Reset der Arena
+        game.resetGame();
+        SignListener.updateJoinSigns(plugin, registry);
+
+        // final-Referenz für die Lambdas
+        final ArenaGame finalGame = game;
+
+        // Alle Spieler sicher in die MainLobby schicken
+        game.getPlayers().forEach(uuid -> {
+            Player p = plugin.getServer().getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                finalGame.getPlayerManager().getMapManager().teleportToMainLobby(p);
+            }
+        });
+
+        // Alle Spectators sicher in die MainLobby schicken
+        game.getSpectators().forEach(uuid -> {
+            Player p = plugin.getServer().getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                finalGame.getPlayerManager().getMapManager().teleportToMainLobby(p);
+            }
+        });
     }
 }

@@ -2,6 +2,7 @@ package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.model.Arena;
+import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -25,16 +26,16 @@ public class EnvironmentProtectListener implements Listener {
     }
 
     /**
-     * Prüft, ob ein Spieler in einer Arena- oder Lobby-Welt ist.
+     * Prüft, ob ein Spieler in einer Arena- oder MainLobby-Welt ist.
      */
     private boolean isProtectedWorld(Player p) {
         // Arena-Welten
         Arena arena = plugin.getArenaManager().getArenaForWorld(p.getWorld());
         if (arena != null) return true;
 
-        // Lobby-Welt
-        String lobbyWorld = plugin.getConfigManager().getLobbyWorld();
-        return p.getWorld().getName().equalsIgnoreCase(lobbyWorld);
+        // MainWorld (aus Config)
+        String mainWorld = plugin.getConfigManager().getMainWorld();
+        return p.getWorld().getName().equalsIgnoreCase(mainWorld);
     }
 
     private boolean isAdminBypassed(Player p) {
@@ -47,8 +48,10 @@ public class EnvironmentProtectListener implements Listener {
         if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke platzieren!");
-        plugin.debug("BlockPlace verhindert in geschützter Welt: " + p.getName() + " → " + event.getBlockPlaced().getType());
+        MessageLimiter.sendPlayerMessage(p, "block-place",
+                ChatColor.RED + "Du darfst hier keine Blöcke platzieren!");
+        plugin.debug("BlockPlace verhindert in geschützter Welt: " + p.getName() +
+                " → " + event.getBlockPlaced().getType());
     }
 
     @EventHandler
@@ -57,8 +60,10 @@ public class EnvironmentProtectListener implements Listener {
         if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Du darfst hier keine Blöcke abbauen!");
-        plugin.debug("BlockBreak verhindert in geschützter Welt: " + p.getName() + " → " + event.getBlock().getType());
+        MessageLimiter.sendPlayerMessage(p, "block-break",
+                ChatColor.RED + "Du darfst hier keine Blöcke abbauen!");
+        plugin.debug("BlockBreak verhindert in geschützter Welt: " + p.getName() +
+                " → " + event.getBlock().getType());
     }
 
     @EventHandler
@@ -67,7 +72,8 @@ public class EnvironmentProtectListener implements Listener {
         if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
-        p.sendMessage(ChatColor.RED + "Eimer sind hier deaktiviert!");
+        MessageLimiter.sendPlayerMessage(p, "bucket-empty",
+                ChatColor.RED + "Eimer sind hier deaktiviert!");
         plugin.debug("BucketEmpty verhindert in geschützter Welt: " + p.getName());
     }
 
@@ -77,6 +83,8 @@ public class EnvironmentProtectListener implements Listener {
         if (!isProtectedWorld(p) || isAdminBypassed(p)) return;
 
         event.setCancelled(true);
+        MessageLimiter.sendPlayerMessage(p, "bucket-fill",
+                ChatColor.RED + "Eimer sind hier deaktiviert!");
         plugin.debug("BucketFill verhindert in geschützter Welt: " + p.getName());
     }
 
@@ -91,7 +99,8 @@ public class EnvironmentProtectListener implements Listener {
         Material type = item.getType();
         if (type == Material.FLINT_AND_STEEL || type == Material.FIRE_CHARGE) {
             event.setCancelled(true);
-            p.sendMessage(ChatColor.RED + "Feuer ist hier deaktiviert!");
+            MessageLimiter.sendPlayerMessage(p, "fire",
+                    ChatColor.RED + "Feuer ist hier deaktiviert!");
             plugin.debug("Feuerzeug/FireCharge verhindert in geschützter Welt: " + p.getName());
         }
     }

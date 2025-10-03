@@ -4,21 +4,16 @@
 # Hinweise:
 # - Alle Werte können angepasst werden
 # - Kommentare beschreiben, wie sie sich im Spiel auswirken
-# - Einheit für Zeiten: Sekunden (außer Nachrichten-Cooldown → Millisekunden)
+# - Einheit für Zeiten: Sekunden (ausser Nachrichten-Cooldown → Millisekunden)
 # ==========================================
 
 # -------------------------------
 # 🌍 Welten-Konfiguration
 # -------------------------------
 worlds:
-  main: world   # Hauptwelt, in die Spieler nach Spielende zurückkehren
-  lobby: lobby  # Lobby-Welt, in der Spieler zwischen den Runden warten
+  main: world   # Hauptwelt/Hauptlobby, in die Spieler nach Spielende zurückkehren
 
-lobby-spawns:
-  - "0, 65, 0"
-  - "5, 65, 5"
-  - "-5, 65, 5"
-  - "10, 65, -3"
+main-lobby-spawn: "0,65,0,0,0"   # X,Y,Z,Yaw,Pitch
 
 # -------------------------------
 # 🗺 Arenen-Definitionen
@@ -31,14 +26,19 @@ arenas:
     world: map1
     maxPlayers: 16
     size: small
+    lobby: "5,64,5,90,0"
+    gamemode: bow-fallback
     spawns:
       - 0,64,0
       - 10,64,0
+      - "130,70,230,0,0,SPECTATOR"
 
   map2:
     world: map2
     maxPlayers: 12
     size: mid
+    lobby: "5,64,5,90,0"
+    gamemode: bow-fallback
     region:        # Region wird genutzt, wenn keine exakten Spawns angegeben
       minX: -30
       maxX: 30
@@ -49,8 +49,11 @@ arenas:
     world: map3
     maxPlayers: 20
     size: large
+    lobby: "5,64,5,90,0"
+    gamemode: bow-fallback
     spawns:
       - -5,64,-5
+      - "130,70,230,0,0,SPECTATOR"
 
 # -------------------------------
 # ⚙ Spiel-Parameter
@@ -58,13 +61,6 @@ arenas:
 min-players: 3         # Mindestanzahl Spieler, damit eine Runde starten kann
 countdown-seconds: 15  # Countdown in Sekunden bis Rundenstart
 max-game-seconds: 600  # Maximale Rundenzeit (z. B. 600 = 10 Minuten)
-
-# -------------------------------
-# 🎮 Spielmodus
-# -------------------------------
-# classic      → Detective stirbt → Runde endet sofort
-# bow-fallback → Detective-Bogen fällt zu Boden, neuer Spieler kann Detective werden
-gamemode: bow-fallback
 
 # -------------------------------
 # 🔒 Schutz-Einstellungen

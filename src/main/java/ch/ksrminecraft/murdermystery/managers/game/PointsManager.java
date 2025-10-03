@@ -23,39 +23,46 @@ public class PointsManager {
         boolean debug = plugin.getConfig().getBoolean("rankpoints.debug", false);
         boolean excludeStaff = plugin.getConfig().getBoolean("rankpoints.exclude-staff", false);
 
+        plugin.debug("[PointsManager] Initialisiere PointsAPI mit URL=" + url + ", User=" + user +
+                ", Debug=" + debug + ", excludeStaff=" + excludeStaff);
+
         this.api = new PointsAPI(url, user, pass, logger, debug, excludeStaff);
-        plugin.debug("Eigene PointsAPI-Instanz initialisiert.");
+        plugin.debug("[PointsManager] Eigene PointsAPI-Instanz erstellt.");
 
         // --- DB-Test mit Dummy-UUID ---
         try {
-            api.getPoints(UUID.randomUUID());
-            plugin.debug("Verbindungstest zur RankPoints-Datenbank erfolgreich.");
+            UUID dummy = UUID.randomUUID();
+            plugin.debug("[PointsManager] Starte Verbindungstest mit Dummy-UUID=" + dummy);
+            api.getPoints(dummy);
+            plugin.debug("[PointsManager] Verbindungstest zur RankPoints-Datenbank erfolgreich.");
         } catch (Throwable t) {
-            logger.log(Level.SEVERE, "RankPointsAPI-DB-Test fehlgeschlagen! Plugin wird deaktiviert.", t);
+            logger.log(Level.SEVERE, "[PointsManager] RankPointsAPI-DB-Test fehlgeschlagen!", t);
             throw new IllegalStateException("RankPointsAPI-Datenbank nicht erreichbar.", t);
         }
     }
 
     // --- API Methoden ---
     public void addPointsToPlayer(UUID uuid, int points) {
+        plugin.debug("[PointsManager] addPointsToPlayer → uuid=" + uuid + ", points=+" + points);
         api.addPoints(uuid, Math.max(0, points));
-        plugin.debug("addPointsToPlayer → " + uuid + " (+" + points + ")");
     }
 
     public void setPoints(UUID uuid, int points) {
+        plugin.debug("[PointsManager] setPoints → uuid=" + uuid + ", points=" + points);
         api.setPoints(uuid, Math.max(0, points));
         logger.info("[PointsManager] setPoints für " + uuid + " auf " + points);
     }
 
     public void applyPenalty(UUID uuid, int penaltyPoints, String reason) {
         int applied = Math.max(0, penaltyPoints);
+        plugin.debug("[PointsManager] applyPenalty → uuid=" + uuid + ", penalty=-" + applied + ", reason=" + reason);
         api.addPoints(uuid, -applied);
-        plugin.debug("Penalty -" + applied + " für " + uuid + " (Grund: " + reason + ")");
     }
 
     public int getPoints(UUID uuid) {
+        plugin.debug("[PointsManager] getPoints → Anfrage für uuid=" + uuid);
         int points = api.getPoints(uuid);
-        plugin.debug("getPoints(" + uuid + ") = " + points);
+        plugin.debug("[PointsManager] getPoints(" + uuid + ") = " + points);
         return points;
     }
 }

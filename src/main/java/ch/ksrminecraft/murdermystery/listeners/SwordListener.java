@@ -2,7 +2,9 @@ package ch.ksrminecraft.murdermystery.listeners;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
+import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
 import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
+import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
 import org.bukkit.ChatColor;
@@ -14,9 +16,11 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 public class SwordListener implements Listener {
 
     private final MurderMystery plugin;
+    private final GameManagerRegistry registry;
 
-    public SwordListener(MurderMystery plugin) {
+    public SwordListener(MurderMystery plugin, GameManagerRegistry registry) {
         this.plugin = plugin;
+        this.registry = registry;
     }
 
     @EventHandler
@@ -24,24 +28,30 @@ public class SwordListener implements Listener {
         if (!(event.getEntity() instanceof Player victim)) return;
         if (!(event.getDamager() instanceof Player attacker)) return;
 
-        if (ItemManager.isMurdererSword(attacker.getInventory().getItemInMainHand())) {
-            if (RoleManager.getRole(attacker.getUniqueId()) != Role.MURDERER) {
-                MessageLimiter.sendPlayerMessage(attacker, "sword-forbidden",
-                        "§cNur der Mörder darf das Schwert benutzen!");
-                event.setCancelled(true);
-                return;
-            }
+        // Nur Schwert relevant
+        if (!ItemManager.isMurdererSword(attacker.getInventory().getItemInMainHand())) return;
 
-            // Kein echter Schaden → nur eliminate triggern
-            event.setDamage(0);
-
-            // Broadcast + Debug jetzt VOR eliminate()
-            MessageLimiter.sendBroadcast("murderer-kill",
-                    ChatColor.DARK_RED + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet!");
-            plugin.debug("Murderer " + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet.");
-
-            // eliminate erst NACH der Meldung
-            plugin.getGameManager().eliminate(victim, attacker);
+        // Arena des Angreifers ermitteln
+        ArenaGame manager = registry.findArenaOfPlayer(attacker);
+        if (manager == null || !manager.isGameStarted()) {
+            return; // kein Spiel aktiv → nichts tun
         }
+
+        // Nur Mörder darf es nutzen
+        if (RoleManager.getRole(attacker.getUniqueId()) != Role.MURDERER) {
+            MessageLimiter.sendPlayerMessage(attacker, "sword-forbidden",
+                    "§cNur der Mörder darf das Schwert benutzen!");
+            event.setCancelled(true);
+            return;
+        }
+
+        // Schaden verhindern → wir übernehmen alles
+        event.setCancelled(true);
+
+        // Meldung
+        plugin.debug("Murderer " + attacker.getName() + " hat " + victim.getName() + " mit dem Schwert getötet.");
+
+        // Spieler in dieser Arena eliminieren
+        manager.eliminate(victim, attacker);
     }
 }
