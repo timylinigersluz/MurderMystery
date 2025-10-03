@@ -3,13 +3,11 @@ package ch.ksrminecraft.murdermystery.managers.game;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.listeners.SignListener;
 import ch.ksrminecraft.murdermystery.managers.effects.Broadcaster;
-import ch.ksrminecraft.murdermystery.managers.support.ArenaManager;
-import ch.ksrminecraft.murdermystery.managers.support.BossBarManager;
-import ch.ksrminecraft.murdermystery.managers.support.ConfigManager;
-import ch.ksrminecraft.murdermystery.managers.support.GameTimerManager;
+import ch.ksrminecraft.murdermystery.managers.support.*;
 import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.model.RoundStats;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
@@ -136,6 +134,24 @@ public class GameManager {
     public void resetGame() {
         int playerCount = players.size();
         int spectatorCount = spectators.size();
+
+        // --- Alle Spieler zurück in MainLobby ---
+        if (this instanceof ArenaGame arenaGame) {
+            MapManager mapManager = arenaGame.getMapManager();
+
+            for (UUID uuid : new HashSet<>(players)) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    mapManager.teleportToMainLobby(p);
+                }
+            }
+            for (UUID uuid : new HashSet<>(spectators)) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    mapManager.teleportToMainLobby(p);
+                }
+            }
+        }
 
         // --- Items in der Arena-Welt aufräumen ---
         if (this instanceof ArenaGame arenaGame) {

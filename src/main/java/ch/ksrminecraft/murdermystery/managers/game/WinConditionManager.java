@@ -28,7 +28,7 @@ public class WinConditionManager {
     public RoundResultManager.EndCondition checkWinConditions(Set<UUID> players,
                                                               Map<UUID, Role> roles,
                                                               RoundStats stats) {
-        // ❗ Sicherstellen: Nur prüfen, wenn Spiel läuft
+        // Sicherstellen: Nur prüfen, wenn Spiel läuft
         if (!game.isGameStarted()) {
             game.getConfigManager().debug("[WinCondition] Abgebrochen → Spiel läuft nicht (Lobby/Countdown).");
             return null;

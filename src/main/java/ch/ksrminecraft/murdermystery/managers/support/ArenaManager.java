@@ -54,7 +54,7 @@ public class ArenaManager {
                 }
             }
 
-            // Arena anlegen (GameSpawns füllen wir gleich)
+            // Arena anlegen
             String arenaKey = cfg.getName().toLowerCase();
             Arena arena = new Arena(
                     arenaKey,
@@ -68,16 +68,24 @@ public class ArenaManager {
                     size
             );
 
-            // Arena-Lobby-Spawn setzen
-            Location lobby = cfg.getArenaLobbySpawnPoint();
+            // Debug: Lobby-Wert aus ArenaConfig prüfen
+            String rawLobby = cfg.getRawLobby();
+            Location lobby = null;
+            if (rawLobby != null) {
+                lobby = plugin.getConfigManager().parseLocation(worldName, rawLobby);
+                plugin.debug("[ArenaManager] Arena=" + arenaKey + " Lobby-String=" + rawLobby +
+                        " → Parsed=" + (lobby != null ? lobby : "null"));
+            }
+
             if (lobby != null) {
                 if (lobby.getWorld() == null) lobby.setWorld(world);
                 arena.setArenaLobbySpawnPoint(lobby);
                 plugin.debug("[ArenaManager] Lobby-Spawn gesetzt für '" + arenaKey + "' → "
                         + String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
-                        lobby.getX(), lobby.getY(), lobby.getZ(), lobby.getYaw(), lobby.getPitch()));
+                        lobby.getX(), lobby.getY(), lobby.getZ(),
+                        lobby.getYaw(), lobby.getPitch()));
             } else {
-                plugin.debug("[ArenaManager] Kein Lobby-Spawn für '" + arenaKey + "' in der Config. Fallback: Weltspawn.");
+                plugin.debug("[ArenaManager] Kein Lobby-Spawn für '" + arenaKey + "' → Fallback Weltspawn.");
             }
 
             // Game-Spawns & optional Spectator-Spawn laden
@@ -122,6 +130,8 @@ public class ArenaManager {
 
         plugin.debug("[ArenaManager] Fertig geladen. Arenen insgesamt: " + arenas.size());
     }
+
+
 
     public void reload() {
         plugin.debug("[ArenaManager] Reload angefordert.");
@@ -183,5 +193,4 @@ public class ArenaManager {
                 + (arena != null ? arena.getName() : "null"));
         return arena;
     }
-
 }

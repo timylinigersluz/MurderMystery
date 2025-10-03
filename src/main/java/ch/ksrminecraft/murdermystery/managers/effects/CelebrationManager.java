@@ -36,6 +36,14 @@ public class CelebrationManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null || !p.isOnline()) continue;
 
+            // Sonderfall: Zeit abgelaufen → Unentschieden
+            if (condition == RoundResultManager.EndCondition.TIME_UP) {
+                // neutraler Fall für alle
+                p.sendTitle(ChatColor.YELLOW + "⏳ Zeit abgelaufen", ChatColor.GRAY + "Unentschieden!", 10, 60, 10);
+                p.sendMessage(ChatColor.YELLOW + "⏳ Das Spiel endete unentschieden.");
+                continue;
+            }
+
             boolean isWinner = isWinner(roles.get(uuid), condition);
 
             if (isWinner) {
@@ -51,12 +59,23 @@ public class CelebrationManager {
     }
 
     private boolean isWinner(Role role, RoundResultManager.EndCondition condition) {
-        if (role == null) return false;
-        return switch (condition) {
-            case MURDERER_WIN -> role == Role.MURDERER;
-            case DETECTIVE_WIN -> role == Role.DETECTIVE || role == Role.BYSTANDER;
-            case TIME_UP -> false;
-        };
+        if (condition == RoundResultManager.EndCondition.TIME_UP) {
+            // Bei Zeitablauf → niemand ist Gewinner oder Verlierer
+            return false; // neutral
+        }
+
+        switch (condition) {
+            case DETECTIVE_WIN -> {
+                return role == Role.DETECTIVE || role == Role.BYSTANDER;
+            }
+            case MURDERER_WIN -> {
+                return role == Role.MURDERER;
+            }
+            // ggf. weitere Fälle wie CO_WIN usw.
+            default -> {
+                return false;
+            }
+        }
     }
 
     /** Feuerwerk für Sieger */

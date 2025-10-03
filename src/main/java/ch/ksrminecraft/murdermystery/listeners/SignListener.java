@@ -139,13 +139,15 @@ public class SignListener implements Listener {
                         int secondsLeft = arenaGame.getGameTimerManager().getRemainingSeconds();
                         int minutes = secondsLeft / 60;
                         int seconds = secondsLeft % 60;
-                        sign.setLine(2, ChatColor.RED + String.format("Läuft: %02d:%02d", minutes, seconds));
+                        sign.setLine(2, ChatColor.RED.toString() + ChatColor.BOLD +
+                                String.format("Läuft: %02d:%02d", minutes, seconds) + ChatColor.RED);
+
                         sign.setLine(3, ChatColor.DARK_RED + "Beitritt gesperrt");
                     } else if (arenaGame.getCountdownManager().isCountdownRunning()) {
                         // Lobby-Countdown läuft → Start-Timer anzeigen
                         int secondsLeft = arenaGame.getCountdownManager().getRemainingSeconds();
-                        sign.setLine(2, ChatColor.GREEN + "Startet in " + ChatColor.DARK_RED + secondsLeft + "s");
-                        sign.setLine(3, ChatColor.YELLOW + "Lobby");
+                        sign.setLine(2, ChatColor.GREEN + "Startet in " + ChatColor.DARK_RED + ChatColor.BOLD + secondsLeft + "s");
+                        sign.setLine(3, ChatColor.RED + "hurry up!");
                     } else {
                         // Lobby, kein Countdown
                         sign.setLine(2, ChatColor.YELLOW + "" + current + " von mind. " + min);

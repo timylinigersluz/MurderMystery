@@ -13,33 +13,30 @@
 worlds:
   main: world   # Hauptwelt/Hauptlobby, in die Spieler nach Spielende zurückkehren
 
-main-lobby-spawn: "0,65,0,0,0"   # X,Y,Z,Yaw,Pitch
+main-lobby-spawn: 0,65,0,0,0   # X,Y,Z,Yaw,Pitch
 
 # -------------------------------
 # 🗺 Arenen-Definitionen
 # -------------------------------
-# - Jede Arena ist eine eigene Multiverse-Welt
-# - Spieler werden zufällig auf definierte Spawnpunkte verteilt
-# - Alternativ kann eine Region angegeben werden, wenn keine exakten Spawns gesetzt sind
 arenas:
   map1:
     world: map1
     maxPlayers: 16
     size: small
-    lobby: "5,64,5,90,0"
+    lobby: 5,64,5,90,0
     gamemode: bow-fallback
     spawns:
       - 0,64,0
       - 10,64,0
-      - "130,70,230,0,0,SPECTATOR"
+      - 130,70,230,0,0,SPECTATOR
 
   map2:
     world: map2
     maxPlayers: 12
     size: mid
-    lobby: "5,64,5,90,0"
+    lobby: 5,64,5,90,0
     gamemode: bow-fallback
-    region:        # Region wird genutzt, wenn keine exakten Spawns angegeben
+    region:
       minX: -30
       maxX: 30
       minZ: -30
@@ -49,11 +46,11 @@ arenas:
     world: map3
     maxPlayers: 20
     size: large
-    lobby: "5,64,5,90,0"
+    lobby: 5,64,5,90,0
     gamemode: bow-fallback
     spawns:
       - -5,64,-5
-      - "130,70,230,0,0,SPECTATOR"
+      - 130,70,230,0,0,SPECTATOR
 
 # -------------------------------
 # ⚙ Spiel-Parameter
@@ -71,46 +68,42 @@ protection:
 # -------------------------------
 # 🏆 Punkte-System
 # -------------------------------
-# Punkte werden am Rundenende verteilt (RoundStats).
 points:
-  kill-murderer: 5       # Detective: Punkte für Töten des Murderers
-  kill-innocent: -5      # Detective: Punkteverlust pro Fehlabschuss
-  kill-as-murderer: 2    # Murderer: Punkte pro Kill
-  survive: 3             # Punkte für Überleben einer Runde
-  win: 5                 # Bonus für Sieger (Murderer oder Detective)
-  co-win: 2              # Bonus für Innocents bei Detective-Sieg
-  lose: 2                # Trostpunkte für Verlierer
-  consolation: 2         # Trostpunkte für Innocents ohne Überleben
-  quit: -3               # Punkteabzug beim Verlassen
-  time-up: 3             # Punkte bei Zeitablauf (Unentschieden)
+  kill-murderer: 5
+  kill-innocent: -5
+  kill-as-murderer: 2
+  survive: 3
+  win: 5
+  co-win: 2
+  lose: 2
+  consolation: 2
+  quit: -3
+  time-up: 3
 
 # -------------------------------
 # 🛠 Debug
 # -------------------------------
-debug: true              # true = erweiterte Logs in Konsole
+debug: true
 
 # -------------------------------
 # 📢 Nachrichten-Cooldown
 # -------------------------------
-# Schutz vor Spam durch wiederholte Nachrichten.
-# Einheit = Millisekunden (1000 ms = 1 Sekunde)
 message-cooldown:
-  global: 3000      # Cooldown für globale Nachrichten (Broadcasts, Konsole)
-  player: 2000      # Cooldown für wiederholte Meldungen pro Spieler
+  global: 3000
+  player: 2000
 
 # -------------------------------
 # 🎮 Spielmodus der Spieler
 # -------------------------------
-# Optionen: survival, adventure
 player-gamemode: adventure
 
 # -------------------------------
 # 🗄 RankPointsAPI (Punkte-Datenbank)
 # -------------------------------
-Rank-Points-API-url: "jdbc:mysql://mc-mysql01.mc-host24.de:3306/s31069_player-point"
-Rank-Points-API-user: "username"
-Rank-Points-API-password: "password"
+Rank-Points-API-url: jdbc:mysql://mc-mysql01.mc-host24.de:3306/s31069_player-point
+Rank-Points-API-user: username
+Rank-Points-API-password: password
 
 rankpoints:
-  debug: false           # true = zusätzliche SQL-Logs in Konsole
-  exclude-staff: false   # true = Staff (Admin/Mod) wird von Punktevergabe ausgeschlossen
+  debug: false
+  exclude-staff: false

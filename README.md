@@ -2,32 +2,35 @@
 
 Ein **komplettes Murder Mystery Minigame** für Minecraft (Paper 1.21+).  
 Spieler übernehmen die Rollen **Murderer**, **Detective** oder **Bystander** und kämpfen ums Überleben.  
-Das Plugin ist speziell für Servernetzwerke mit **RankPointsAPI-Integration** entwickelt.
+Das Plugin unterstützt **mehrere Arenen gleichzeitig** (MultiArena) und ist für Servernetzwerke mit **RankPointsAPI-Integration** entwickelt.
 
 ---
 
 ## 🚀 Features
 
+- **MultiArena-Support**
+    - Mehrere Spiele können **parallel** in verschiedenen Arenen laufen
+    - Spieler wählen Arenen über Join-Schilder oder `/mm join <arena>`
 - Automatisches **Rollen-System**
     - 1x Murderer (Schwert, tötet heimlich alle)
     - 1x Detective (Bogen mit Cooldown, muss den Murderer enttarnen)
     - Rest: Bystander (unschuldig, gewinnen durch Überleben)
-- **Countdown-System** beim Start
+- **Countdown-System** pro Arena
 - **Arena-Management**
     - Mehrere Arenen über `config.yml` definierbar
-    - Feste Spawnpunkte (`/mm setspawn`) oder dynamische Safe-Spawns per Region
+    - Feste Spawnpunkte (`/mm setspawn <arena>`) oder dynamische Safe-Spawns per Region
     - Automatische Teleports zwischen Lobby, Arenen und Main-Welt
 - **Lobby-System**
     - Join-Schilder mit Grössenwahl (small/mid/large)
-    - Schilder blockieren automatisch andere Grössen, sobald ein Spieler eine Runde startet
-    - Lobby ist wie Arenen vor Interaktionen/Abbau geschützt
+    - Jede Arena verwaltet eigene Spieler & Countdown unabhängig
+    - Lobby und Arenen vor Interaktionen/Abbau geschützt
 - **Punkte-System** (RankPointsAPI)
     - Dynamische Punktevergabe: Kills, Überleben, Sieg, Niederlage, Quit-Strafen
     - Konfigurierbare Werte in `config.yml`
     - Transparente Anzeige der Punkte am Rundenende im Chat
-- **Grosse Titel-Anzeigen**
+- **Große Titel-Anzeigen**
     - Kill-Meldungen sofort als Titel für alle
-    - Runde-Ende: Gewinner & Verlierer mit fetter Anzeige
+    - Runde-Ende: Gewinner, Verlierer oder „Zeit abgelaufen“
 - **Anti-Cheat Schutz**
     - Murderer-Schwert & Detective-Bogen können nicht gedroppt, bewegt oder gelagert werden
     - Cooldown für Detective-Bogen (3 Sekunden)
@@ -38,41 +41,44 @@ Das Plugin ist speziell für Servernetzwerke mit **RankPointsAPI-Integration** e
 
 ## 🕹️ Spielablauf
 
-1. Spieler joinen über `/mm join` oder Lobby-Schilder `[MurderMystery] small/mid/large`.
-2. Sobald die **Mindestanzahl Spieler** erreicht ist, startet ein Countdown.
+1. Spieler joinen über `/mm join <arena>` oder Lobby-Schilder `[MurderMystery] <arena/size>`.
+2. Sobald die **Mindestanzahl Spieler** in einer Arena erreicht ist, startet dort ein Countdown.
 3. Nach Countdown:
     - Rollen werden zufällig verteilt
     - Spieler werden auf **verschiedene Spawnpunkte** verteilt (keine Überschneidungen)
     - Murderer bekommt Schwert, Detective Bogen+Pfeil, Bystander nichts
 4. Siegbedingungen:
     - Murderer tötet alle → Murderer gewinnt
-    - Murderer wird getötet (z. B. durch Detective-Bogen) → Innocents/Detective gewinnen
+    - Murderer wird getötet → Innocents/Detective gewinnen
     - Detective schießt auf Innocent → Punkteabzug & Broadcast
+    - Zeit läuft ab → **Unentschieden**, Titel: „Zeit ist abgelaufen“
 5. Runde endet → Punkte werden verteilt, Statistiken im Chat ausgegeben, Arena & Lobby werden zurückgesetzt.
 
 ---
 
 ## 📜 Befehle
 
-| Befehl                  | Beschreibung |
-|-------------------------|--------------|
-| `/mm join`              | Spieler tritt einer Lobby/Runde bei |
-| `/mm leave`             | Spieler verlässt die Runde |
-| `/mm forcestart`        | Startet eine Runde sofort (Admin) |
-| `/mm setspawn <arena>`  | Fügt einen neuen Spawnpunkt für eine Arena hinzu (Admin) |
-| `/mm setspawn lobby`    | Fügt einen Spawnpunkt für die Lobby hinzu |
-| `/mm help`              | Zeigt alle verfügbaren Subcommands |
+| Befehl                       | Beschreibung |
+|------------------------------|--------------|
+| `/mm join <arena>`           | Spieler tritt einer spezifischen Arena bei |
+| `/mm leave`                  | Spieler verlässt die aktuelle Arena |
+| `/mm forcestart <arena>`     | Startet eine Runde sofort in dieser Arena (Admin) |
+| `/mm setspawn <arena>`       | Fügt einen neuen Spawnpunkt für eine Arena hinzu (Admin) |
+| `/mm setspawn lobby`         | Fügt einen Spawnpunkt für die Lobby hinzu |
+| `/mm stop <arena>`           | Stoppt eine Arena sofort (Admin) |
+| `/mm reset <arena>`          | Setzt eine Arena komplett zurück (Admin) |
+| `/mm help`                   | Zeigt alle verfügbaren Subcommands |
 
 ---
 
 ## 🔑 Permissions
 
-| Permission              | Beschreibung |
-|-------------------------|--------------|
-| `murdermystery.use`     | Basis-Permission für `/mm` |
-| `murdermystery.admin`   | Erlaubt Admin-Befehle wie `/mm forcestart` und `/mm setspawn` |
-| `murdermystery.join`    | Erlaubt einem Spieler, einer Runde beizutreten |
-| `murdermystery.leave`   | Erlaubt einem Spieler, eine Runde zu verlassen |
+| Permission                   | Beschreibung |
+|------------------------------|--------------|
+| `murdermystery.use`          | Basis-Permission für `/mm` |
+| `murdermystery.admin`        | Erlaubt Admin-Befehle wie `/mm forcestart`, `/mm stop`, `/mm reset`, `/mm setspawn` |
+| `murdermystery.join`         | Erlaubt einem Spieler, einer Arena beizutreten |
+| `murdermystery.leave`        | Erlaubt einem Spieler, eine Arena zu verlassen |
 
 ---
 
@@ -86,8 +92,6 @@ worlds:
 lobby-spawns:
   - "0, 65, 0"
   - "5, 65, 5"
-  - "-5, 65, 5"
-  - "10, 65, -3"
 
 arenas:
   map1:
@@ -165,6 +169,7 @@ player-gamemode: adventure
     - Spielstart, Countdown, Rollenverteilung
     - Kills, Quit/Rejoin, Punktevergabe
     - Arena-Teleports, Spawnverhalten
+    - MultiArena-Handling
 
 ---
 
@@ -185,7 +190,7 @@ player-gamemode: adventure
 3. Arenen & Spawns per `/mm setspawn <arena>` hinzufügen.
 4. Punkte- und DB-Einstellungen in der Config anpassen.
 5. Server neu starten.
-6. `/mm join` testen 🚀
+6. `/mm join <arena>` testen 🚀
 
 ---
 
@@ -193,6 +198,5 @@ player-gamemode: adventure
 
 Basierend auf eigenen Entwicklungen & inspiriert von Community-Projekten.
 
-Credis to: https://github.com/Catmaster420
-
-RankPointsAPI: https://github.com/timylinigersluz/RankPointsProxy
+Credits to: https://github.com/Catmaster420  
+RankPointsAPI: https://github.com/timylinigersluz/RankPointsProxy  

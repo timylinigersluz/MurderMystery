@@ -2,10 +2,7 @@ package ch.ksrminecraft.murdermystery.managers.support;
 
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.model.Arena;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.entity.Player;
 
 public class MapManager {
@@ -35,12 +32,19 @@ public class MapManager {
     }
 
     /** Spieler in die ArenaLobby teleportieren */
-    public void teleportToArenaLobby(Player p, Arena arena) {
-        if (p == null || !p.isOnline() || arena == null) return;
-
+    public void teleportToArenaLobby(Player player, Arena arena) {
         Location lobby = arena.getArenaLobbySpawnPoint();
-        teleportPlayer(p, lobby, "ArenaLobby '" + arena.getName() + "'");
-        p.setGameMode(GameMode.SURVIVAL);
+        plugin.debug("[MapManager] Teleportiere " + player.getName() +
+                " → ArenaLobby '" + arena.getName() + "' @ " +
+                (lobby != null ? String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                        lobby.getX(), lobby.getY(), lobby.getZ(),
+                        lobby.getYaw(), lobby.getPitch()) : "null"));
+
+        if (lobby != null) {
+            player.teleport(lobby);
+        } else {
+            player.sendMessage(ChatColor.RED + "Lobby-Spawn nicht definiert!");
+        }
     }
 
     /** Spieler auf einen zufälligen ArenaGameSpawn teleportieren */
@@ -61,7 +65,7 @@ public class MapManager {
         p.setGameMode(GameMode.SPECTATOR);
     }
 
-    private void teleportPlayer(Player p, Location location, String context) {
+    public void teleportPlayer(Player p, Location location, String context) {
         if (location == null) {
             plugin.getLogger().warning("[MapManager] Teleport fehlgeschlagen → Location null (" + context + ")");
             return;

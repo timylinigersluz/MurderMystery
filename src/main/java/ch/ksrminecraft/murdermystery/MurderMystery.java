@@ -33,9 +33,13 @@ public class MurderMystery extends JavaPlugin {
         instance = this;
 
         // === Config laden ===
-        this.configManager = new ConfigManager(this);
-        this.debugEnabled = configManager.isDebug();
+        saveDefaultConfig(); // sicherstellen, dass Datei existiert
+        // Debug direkt vor dem ConfigManager laden
+        this.debugEnabled = getConfig().getBoolean("debug", true);
         getLogger().info("Debug-Modus: " + (debugEnabled ? "AKTIVIERT" : "deaktiviert"));
+
+        // ConfigManager initialisieren (nutzt bereits gesetztes debugFlag)
+        this.configManager = new ConfigManager(this);
 
         // === RankPointsAPI prüfen ===
         if (getServer().getPluginManager().getPlugin("RankPointsAPI") == null) {
@@ -58,7 +62,7 @@ public class MurderMystery extends JavaPlugin {
         // MessageLimiter
         MessageLimiter.init(this);
 
-        // === Listener registrieren (alle mit Registry arbeiten) ===
+        // === Listener registrieren ===
         getServer().getPluginManager().registerEvents(new PlayerJoinListener(gameManagerRegistry, mapManager), this);
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(gameManagerRegistry), this);
         getServer().getPluginManager().registerEvents(new SignListener(this, gameManagerRegistry), this);
@@ -94,9 +98,14 @@ public class MurderMystery extends JavaPlugin {
         debug("MurderMystery Plugin erfolgreich aktiviert.");
     }
 
+
     @Override
     public void onDisable() {
-        QuitTracker.clearAll();
+        try {
+            QuitTracker.clearAll();
+        } catch (Throwable t) {
+            getLogger().warning("QuitTracker konnte nicht geleert werden: " + t.getClass().getSimpleName() + " - " + t.getMessage());
+        }
         getLogger().info("MurderMystery deaktiviert.");
     }
 

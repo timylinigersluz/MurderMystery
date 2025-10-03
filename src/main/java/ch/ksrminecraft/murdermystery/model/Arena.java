@@ -1,5 +1,6 @@
 package ch.ksrminecraft.murdermystery.model;
 
+import ch.ksrminecraft.murdermystery.MurderMystery;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -59,11 +60,41 @@ public class Arena {
 
     // ---- Arena-Lobby ----
     public Location getArenaLobbySpawnPoint() {
-        return (arenaLobbySpawnPoint != null) ? arenaLobbySpawnPoint : world.getSpawnLocation();
+        if (arenaLobbySpawnPoint != null) {
+            MurderMystery.getInstance().debug(
+                    "[Arena] getArenaLobbySpawnPoint() → definiert @ " +
+                            String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                                    arenaLobbySpawnPoint.getX(), arenaLobbySpawnPoint.getY(), arenaLobbySpawnPoint.getZ(),
+                                    arenaLobbySpawnPoint.getYaw(), arenaLobbySpawnPoint.getPitch())
+            );
+            return arenaLobbySpawnPoint;
+        } else {
+            Location fallback = world.getSpawnLocation();
+            MurderMystery.getInstance().debug(
+                    "[Arena] getArenaLobbySpawnPoint() → Fallback Weltspawn @ " +
+                            String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                                    fallback.getX(), fallback.getY(), fallback.getZ(),
+                                    fallback.getYaw(), fallback.getPitch())
+            );
+            return fallback;
+        }
     }
-    public void setArenaLobbySpawnPoint(Location lobbySpawn) {
-        this.arenaLobbySpawnPoint = lobbySpawn;
+
+public void setArenaLobbySpawnPoint(Location lobbySpawn) {
+    if (lobbySpawn == null) {
+        MurderMystery.getInstance().debug("[Arena] setArenaLobbySpawnPoint(null) → KEIN Spawn gesetzt!");
+        this.arenaLobbySpawnPoint = null;
+        return;
     }
+
+    this.arenaLobbySpawnPoint = lobbySpawn;
+    MurderMystery.getInstance().debug(
+            "[Arena] Lobby-Spawn gesetzt für Arena '" + name + "' → " +
+                    String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                            lobbySpawn.getX(), lobbySpawn.getY(), lobbySpawn.getZ(),
+                            lobbySpawn.getYaw(), lobbySpawn.getPitch())
+    );
+}
 
     // ---- Spectator ----
     public Location getSpectatorSpawnPoint() {
@@ -114,7 +145,4 @@ public class Arena {
     public void setGameMode(String gameMode) {
         this.gameMode = gameMode;
     }
-
-    
-
 }

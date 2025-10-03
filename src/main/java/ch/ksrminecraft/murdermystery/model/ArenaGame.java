@@ -95,25 +95,40 @@ public class ArenaGame extends GameManager {
 
         Broadcaster.broadcastMessage(getPlayers(), ChatColor.GREEN + "Das Spiel in Arena '" + arena.getName() + "' hat begonnen!");
 
-        // Spieler auf definierte Arena-Spawns verteilen
-        List<Location> spawns = arena.getArenaGameSpawnPoints();
-        if (spawns != null && !spawns.isEmpty()) {
-            List<UUID> shuffled = new ArrayList<>(getPlayers());
-            Collections.shuffle(shuffled);
+        // Spieler auf definierte Arena-Spawns verteilen (unique Zuordnung + Fallback)
+        List<Location> spawns = new ArrayList<>(arena.getArenaGameSpawnPoints());
 
-            for (int i = 0; i < shuffled.size(); i++) {
-                Player p = Bukkit.getPlayer(shuffled.get(i));
-                if (p == null || !p.isOnline()) continue;
-
-                // Teleport über MapManager → Gamemode & Debug inklusive
-                mapManager.teleportToArenaGameSpawn(p, arena);
-            }
-        } else {
+        if (spawns.isEmpty()) {
             plugin.debug("[ArenaGame] Keine GameSpawns → Teleportiere Spieler in ArenaLobby.");
             for (UUID uuid : getPlayers()) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
                     mapManager.teleportToArenaLobby(p, arena);
+                }
+            }
+        } else {
+            if (spawns.size() < getPlayers().size()) {
+                plugin.getLogger().warning("[ArenaGame] Zu wenige Spawns für Arena '" + arena.getName() +
+                        "'! Spawns=" + spawns.size() + ", Spieler=" + getPlayers().size() +
+                        " → überschüssige Spieler landen auf dem ersten Spawn.");
+            }
+
+            Collections.shuffle(spawns); // Spawns durchmischen
+            List<UUID> shuffledPlayers = new ArrayList<>(getPlayers());
+            Collections.shuffle(shuffledPlayers); // Spieler durchmischen
+
+            for (int i = 0; i < shuffledPlayers.size(); i++) {
+                Player p = Bukkit.getPlayer(shuffledPlayers.get(i));
+                if (p != null && p.isOnline()) {
+                    Location target;
+                    if (i < spawns.size()) {
+                        target = spawns.get(i); // normaler Spawn
+                    } else {
+                        target = spawns.get(0); // Fallback auf ersten Spawn
+                    }
+
+                    mapManager.teleportPlayer(p, target, "ArenaGameSpawn '" + arena.getName() + "'");
+                    p.setGameMode(GameMode.SURVIVAL);
                 }
             }
         }
@@ -249,5 +264,8 @@ public class ArenaGame extends GameManager {
         UUID uuid = player.getUniqueId();
         // Spieler gilt als "inGame", wenn er aktiv spielt oder Spectator ist
         return getPlayers().contains(uuid) || getSpectators().contains(uuid);
+    }
+    public MapManager getMapManager() {
+        return mapManager;
     }
 }

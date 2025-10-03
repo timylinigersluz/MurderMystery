@@ -54,9 +54,6 @@ public class ConfigManager {
     // --- Protection ---
     private boolean allowAdminMove;
 
-    // --- Debug ---
-    private boolean debug;
-
     // ==========================
     // Konstruktor
     // ==========================
@@ -88,7 +85,6 @@ public class ConfigManager {
     public int getPointsQuit() { return pointsQuit; }
     public int getPointsTimeUp() { return pointsTimeUp; }
 
-    public boolean isDebug() { return debug; }
     public boolean isAllowAdminMove() { return allowAdminMove; }
 
     public org.bukkit.GameMode getPlayerGameMode() {
@@ -151,27 +147,21 @@ public class ConfigManager {
 
         plugin.debug("[ConfigManager] Reload gestartet...");
 
-        // MainWorld laden
+        // === MainWorld laden ===
         this.mainWorld = config.getString("worlds.main", "world");
         plugin.debug("[ConfigManager] MainWorld geladen: " + mainWorld);
 
-        // MainWorld-Lobby laden (Fallback: Welt-Spawn)
+        // === MainWorld-Lobby laden ===
         String mainLobbyStr = config.getString("main-lobby-spawn", null);
+        plugin.debug("[ConfigManager] MainLobbyRaw=" + mainLobbyStr);
         if (mainLobbyStr != null) {
             this.mainWorldLobbySpawnPoint = parseLocation(mainWorld, mainLobbyStr);
-            plugin.debug("[ConfigManager] MainWorldLobby Spawn geladen: " + mainLobbyStr);
-        } else {
-            World world = Bukkit.getWorld(mainWorld);
-            this.mainWorldLobbySpawnPoint = (world != null) ? world.getSpawnLocation() : null;
-            plugin.debug("[ConfigManager] Fallback MainWorldLobby auf Welt-Spawn: " +
-                    (mainWorldLobbySpawnPoint != null ? mainWorldLobbySpawnPoint.toString() : "null"));
         }
 
-        // Player Gamemode
+        // === Player Gamemode ===
         this.playerGameMode = config.getString("player-gamemode", "survival").toLowerCase();
-        plugin.debug("[ConfigManager] PlayerGameMode=" + playerGameMode);
 
-        // Arenen laden
+        // === Arenen laden ===
         arenas.clear();
         ConfigurationSection arenaSection = config.getConfigurationSection("arenas");
         if (arenaSection != null) {
@@ -191,26 +181,40 @@ public class ConfigManager {
                         }
                     }
 
-                    // ArenaLobby-Spawn (optional)
-                    String lobbyStr = sec.getString("lobby", null);
-                    Location arenaLobbySpawnPoint = (lobbyStr != null) ? parseLocation(world, lobbyStr) : null;
+                    // Rohdaten Lobby-String speichern (nicht parsen!)
+                    String rawLobby = null;
+                    Object rawLobbyObj = sec.get("lobby");
+                    if (rawLobbyObj instanceof String str) {
+                        rawLobby = str;
+                    } else if (rawLobbyObj instanceof List<?> list && !list.isEmpty()) {
+                        if (list.get(0) instanceof String s) rawLobby = s;
+                    }
 
-                    arenas.put(key, new ArenaConfig(key, world, maxPlayers, size, spawns, region, arenaLobbySpawnPoint));
-                    plugin.debug("[ConfigManager] Arena geladen: " + key + " | Welt=" + world +
-                            ", Max=" + maxPlayers + ", Size=" + size +
-                            ", GameSpawns=" + spawns.size() + ", Lobby=" + (arenaLobbySpawnPoint != null));
+                    arenas.put(key, new ArenaConfig(
+                            key, world, maxPlayers, size, spawns, region, rawLobby
+                    ));
+
+                    plugin.debug("[ConfigManager] Arena geladen: " + key +
+                            " (world=" + world +
+                            ", maxPlayers=" + maxPlayers +
+                            ", size=" + size +
+                            ", spawns=" + (spawns != null ? spawns.size() : 0) +
+                            ", rawLobby=" + rawLobby + ")");
                 }
             }
         }
 
-        // Spielparameter
+        plugin.debug("[ConfigManager] Reload abgeschlossen.");
+
+
+    // === Spielparameter ===
         this.minPlayers = config.getInt("min-players", 3);
         this.countdownSeconds = config.getInt("countdown-seconds", 15);
         this.maxGameSeconds = config.getInt("max-game-seconds", 600);
         plugin.debug("[ConfigManager] Spielparameter: minPlayers=" + minPlayers +
                 ", countdown=" + countdownSeconds + "s, maxGame=" + maxGameSeconds + "s");
 
-        // Punkte
+        // === Punkte ===
         this.pointsKillMurderer = config.getInt("points.kill-murderer", 5);
         this.pointsKillInnocent = config.getInt("points.kill-innocent", -5);
         this.pointsKillAsMurderer = config.getInt("points.kill-as-murderer", 2);
@@ -222,12 +226,37 @@ public class ConfigManager {
         this.pointsQuit = config.getInt("points.quit", -3);
         this.pointsTimeUp = config.getInt("points.time-up", 3);
 
-        // Protection & Debug
+        plugin.debug("[ConfigManager] Punkte geladen: " +
+                "kill-murderer=" + pointsKillMurderer +
+                ", kill-innocent=" + pointsKillInnocent +
+                ", kill-as-murderer=" + pointsKillAsMurderer +
+                ", survive=" + pointsSurvive +
+                ", win=" + pointsWin +
+                ", co-win=" + pointsCoWin +
+                ", lose=" + pointsLose +
+                ", consolation=" + pointsConsolation +
+                ", quit=" + pointsQuit +
+                ", time-up=" + pointsTimeUp);
+
+        // === Protection & Debug ===
         this.allowAdminMove = config.getBoolean("protection.allow-admin-move", true);
-        this.debug = config.getBoolean("debug", false);
+        plugin.debug("[ConfigManager] Protection: allow-admin-move=" + allowAdminMove);
+
+        // === RankPointsAPI Settings ===
+        String rankUrl = config.getString("Rank-Points-API-url", "none");
+        String rankUser = config.getString("Rank-Points-API-user", "none");
+        boolean rankDebug = config.getBoolean("rankpoints.debug", false);
+        boolean excludeStaff = config.getBoolean("rankpoints.exclude-staff", false);
+
+        plugin.debug("[ConfigManager] RankPointsAPI Config: url=" + rankUrl +
+                ", user=" + rankUser +
+                ", debug=" + rankDebug +
+                ", exclude-staff=" + excludeStaff);
 
         plugin.debug("[ConfigManager] Reload abgeschlossen.");
     }
+
+
 
     /** Konfiguration speichern. */
     public void save() {
@@ -249,17 +278,73 @@ public class ConfigManager {
 
     /** Arena-spezifische Konfiguration in das Arena-Objekt laden. */
     public void loadArenaConfig(Arena arena) {
-        String path = "arenas." + arena.getName() + ".gamemode";
-        String mode = config.getString(path, "classic");
+        String basePath = "arenas." + arena.getName();
+
+        // === Gamemode ===
+        String mode = config.getString(basePath + ".gamemode", "classic");
         arena.setGameMode(mode);
-        plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") → " + mode);
+        plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") → Gamemode=" + mode);
+
+        // === Lobby-Spawn ===
+        String worldName = config.getString(basePath + ".world", arena.getWorld().getName());
+        Location lobbyLoc = null;
+
+        Object rawLobby = config.get(basePath + ".lobby");
+        if (rawLobby instanceof String str) {
+            plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") Lobby als String: " + str);
+            lobbyLoc = parseLocation(worldName, str);
+        } else if (rawLobby instanceof List<?>) {
+            List<?> list = (List<?>) rawLobby;
+            plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") Lobby als Liste: " + list);
+            if (!list.isEmpty() && list.get(0) instanceof String s) {
+                lobbyLoc = parseLocation(worldName, s);
+            }
+        } else {
+            plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") Lobby nicht gesetzt oder unbekannter Typ: "
+                    + (rawLobby != null ? rawLobby.getClass().getName() : "null"));
+        }
+
+        if (lobbyLoc != null) {
+            arena.setArenaLobbySpawnPoint(lobbyLoc);
+            plugin.debug("[ConfigManager] LobbyLoc erfolgreich gesetzt → "
+                    + String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                    lobbyLoc.getX(), lobbyLoc.getY(), lobbyLoc.getZ(),
+                    lobbyLoc.getYaw(), lobbyLoc.getPitch()));
+        } else {
+            plugin.debug("[ConfigManager] Kein gültiger Lobby-Spawn definiert für Arena=" + arena.getName());
+        }
+
+        // === Spectator-Spawn ===
+        List<String> spawns = config.getStringList(basePath + ".spawns");
+        plugin.debug("[ConfigManager] loadArenaConfig(" + arena.getName() + ") → SpawnsRaw=" + spawns);
+
+        if (spawns != null && !spawns.isEmpty()) {
+            for (String s : spawns) {
+                if (s.toUpperCase().endsWith(",SPECTATOR")) {
+                    String raw = s.substring(0, s.lastIndexOf(",SPECTATOR"));
+                    Location specLoc = parseLocation(worldName, raw);
+                    if (specLoc != null) {
+                        arena.setSpectatorSpawnPoint(specLoc);
+                        plugin.debug("[ConfigManager] SpectatorLoc gesetzt → "
+                                + String.format("(%.1f, %.1f, %.1f | Yaw=%.1f, Pitch=%.1f)",
+                                specLoc.getX(), specLoc.getY(), specLoc.getZ(),
+                                specLoc.getYaw(), specLoc.getPitch()));
+                    } else {
+                        plugin.debug("[ConfigManager] SpectatorLoc PARSE-ERROR für String=" + raw);
+                    }
+                }
+            }
+        }
     }
+
 
     // ==========================
     // Hilfsmethoden
     // ==========================
     public void debug(String msg) {
-        if (debug) plugin.getLogger().info("[DEBUG] " + msg);
+        if (plugin.isDebugEnabled()) {
+            plugin.getLogger().info("[DEBUG] " + msg);
+        }
     }
 
     /** Location aus "x,y,z[,yaw[,pitch]]" in einer gegebenen Welt parsen. */
@@ -274,9 +359,11 @@ public class ConfigManager {
             double z = Double.parseDouble(parts[2].trim());
             float yaw = parts.length > 3 ? Float.parseFloat(parts[3].trim()) : 0f;
             float pitch = parts.length > 4 ? Float.parseFloat(parts[4].trim()) : 0f;
-            return new Location(world, x, y, z, yaw, pitch);
+            Location loc = new Location(world, x, y, z, yaw, pitch);
+            debug("[ConfigManager] parseLocation → " + loc);
+            return loc;
         } catch (Exception e) {
-            plugin.getLogger().warning("Fehler beim Parsen einer Location: " + locStr);
+            plugin.getLogger().warning("Fehler beim Parsen einer Location: " + locStr + " (" + e.getMessage() + ")");
             return null;
         }
     }
@@ -292,7 +379,7 @@ public class ConfigManager {
         private final String size;
         private final List<String> arenaGameSpawnPoints;
         private final Map<String, Integer> region;
-        private Location arenaLobbySpawnPoint;
+        private final String rawLobby; // 🔹 neu
 
         public ArenaConfig(String name,
                            String world,
@@ -300,26 +387,23 @@ public class ConfigManager {
                            String size,
                            List<String> arenaGameSpawnPoints,
                            Map<String, Integer> region,
-                           Location arenaLobbySpawnPoint) {
+                           String rawLobby) {
             this.name = name;
             this.world = world;
             this.maxPlayers = maxPlayers;
             this.size = size;
             this.arenaGameSpawnPoints = arenaGameSpawnPoints;
             this.region = region;
-            this.arenaLobbySpawnPoint = arenaLobbySpawnPoint;
+            this.rawLobby = rawLobby;
         }
 
-        // --- Getter ---
+        // Getter
         public String getName() { return name; }
         public String getWorld() { return world; }
         public int getMaxPlayers() { return maxPlayers; }
         public String getSize() { return size; }
         public List<String> getArenaGameSpawnPoints() { return arenaGameSpawnPoints; }
         public Map<String, Integer> getRegion() { return region; }
-        public Location getArenaLobbySpawnPoint() { return arenaLobbySpawnPoint; }
-
-        // --- Setter ---
-        public void setArenaLobbySpawnPoint(Location loc) { this.arenaLobbySpawnPoint = loc; }
+        public String getRawLobby() { return rawLobby; }
     }
 }
