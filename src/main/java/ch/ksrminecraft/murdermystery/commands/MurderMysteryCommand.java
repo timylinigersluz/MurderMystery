@@ -74,17 +74,40 @@ public class MurderMysteryCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase();
             for (SubCommand sub : subCommands) {
+
+                // --- Berechtigungen prüfen ---
+                boolean isAdminCommand = switch (sub.getName().toLowerCase()) {
+                    case "forcestart", "stop", "reload", "reset", "setspawn", "setlobbyspawn", "gamemode" -> true;
+                    default -> false;
+                };
+
+                // Spieler darf Admin-Commands nur sehen, wenn er Admin ist
+                if (isAdminCommand && !sender.hasPermission("murdermystery.admin")) {
+                    continue;
+                }
+
+                // Spieler darf Basisbefehle nur sehen, wenn er /mm verwenden darf
+                if (!isAdminCommand && !sender.hasPermission("murdermystery.use")) {
+                    continue;
+                }
+
+                // Vorschläge nur für passende Präfixe
                 if (sub.getName().toLowerCase().startsWith(prefix)) {
                     suggestions.add(sub.getName());
                 }
             }
-        } else if (args.length == 2) {
+        }
+        else if (args.length == 2) {
             switch (subName) {
                 case "setspawn":
                 case "setlobbyspawn":
                 case "forcestart":
                 case "stop":
                 case "reset":
+                    // Nur Admins dürfen Arenas als Tab-Vervollständigung sehen
+                    if (!sender.hasPermission("murdermystery.admin")) {
+                        return suggestions;
+                    }
                     String arenaPrefix = args[1].toLowerCase();
                     plugin.getArenaManager().getAllArenas().stream()
                             .map(Arena::getName)

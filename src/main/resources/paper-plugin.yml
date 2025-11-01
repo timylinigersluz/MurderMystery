@@ -3,20 +3,33 @@ version: '${project.version}'
 main: ch.ksrminecraft.murdermystery.MurderMystery
 api-version: '1.21'
 depend: [RankPointsAPI]
+authors: [KSR Minecraft]
+description: >
+  Murder Mystery Minigame für das KSR Minecraft Netzwerk.
+  Unterstützt mehrere Arenen, Zuschauer, Punktesystem (RankPointsAPI)
+  und automatische Rundenverwaltung.
+
+commands:
+  mm:
+    description: Hauptbefehl für das Murder Mystery Minigame.
+    usage: /mm <subcommand>
+    aliases: [murdermystery]
+    permission: murdermystery.use
+    permission-message: "&cDu hast keine Berechtigung, diesen Befehl zu verwenden."
 
 permissions:
   murdermystery.use:
-    description: Erlaubt Nutzung von /mm
+    description: Erlaubt Nutzung von /mm und grundlegende Befehle (help, join, leave)
     default: true
 
-  murdermystery.admin:
-    description: Erlaubt Admin-Befehle wie /mm forcestart oder /mm stop
-    default: op
-
   murdermystery.join:
-    description: Erlaubt einem Spieler, einer Runde beizutreten
+    description: Erlaubt einem Spieler, einer Runde beizutreten.
     default: true
 
   murdermystery.leave:
-    description: Erlaubt einem Spieler, eine Runde zu verlassen
+    description: Erlaubt einem Spieler, eine Runde zu verlassen.
     default: true
+
+  murdermystery.admin:
+    description: Erlaubt Admin-Befehle wie /mm forcestart, stop, reset, reload, setspawn, gamemode.
+    default: op
