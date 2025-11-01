@@ -3,11 +3,9 @@ package ch.ksrminecraft.murdermystery.listeners;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
-import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
 import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -37,8 +35,13 @@ public class SwordListener implements Listener {
             return; // kein Spiel aktiv → nichts tun
         }
 
+        // --- 🔍 NEU: Rolle direkt aus der Arena-Instanz lesen ---
+        Role attackerRole = manager.getRoles().get(attacker.getUniqueId());
+        plugin.debug("[SwordListener] Spieler " + attacker.getName() + " hat laut Arena '"
+                + manager.getArena().getName() + "' die Rolle " + attackerRole);
+
         // Nur Mörder darf es nutzen
-        if (RoleManager.getRole(attacker.getUniqueId()) != Role.MURDERER) {
+        if (attackerRole != Role.MURDERER) {
             MessageLimiter.sendPlayerMessage(attacker, "sword-forbidden",
                     "§cNur der Mörder darf das Schwert benutzen!");
             event.setCancelled(true);

@@ -89,7 +89,9 @@ public class PlayerManager {
     // --- Leave Handling ---
     public void handleLeave(Player player, Arena arena) {
         UUID uuid = player.getUniqueId();
-        Role role = RoleManager.getRole(uuid);
+
+        // 🔄 Rolle arena-lokal abfragen
+        Role role = gameManager.getRoles().get(uuid);
 
         plugin.debug("[PlayerManager] handleLeave() → Spieler=" + player.getName() +
                 ", Arena=" + arena.getName() + ", Rolle=" + role);
@@ -100,7 +102,8 @@ public class PlayerManager {
         plugin.debug("[PlayerManager] Spielerstatus vor Leave → wasPlayer=" + wasPlayer +
                 ", wasSpectator=" + wasSpectator);
 
-        RoleManager.removePlayer(uuid);
+        // 🔄 Rolle aus arena-lokalem RoleManager entfernen
+        gameManager.getRoleManager().removePlayer(uuid);
         gameManager.getBossBarManager().removePlayer(player);
 
         // --- Fall 1: Spiel läuft ---

@@ -3,7 +3,6 @@ package ch.ksrminecraft.murdermystery.listeners;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
-import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
 import ch.ksrminecraft.murdermystery.model.Arena;
 import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
@@ -56,7 +55,12 @@ public class SpecialItemListener implements Listener {
             return;
         }
 
-        if (drop.getType() == Material.ARROW && RoleManager.getRole(player.getUniqueId()) == Role.DETECTIVE) {
+        // Arena für Spieler bestimmen (lokaler RoleManager)
+        ArenaGame manager = registry.findArenaOfPlayer(player);
+        if (manager == null) return;
+
+        Role role = manager.getRoles().get(player.getUniqueId());
+        if (drop.getType() == Material.ARROW && role == Role.DETECTIVE) {
             event.setCancelled(true);
             MessageLimiter.sendPlayerMessage(player, "arrow-drop",
                     "§cAls Detective darfst du deine Pfeile nicht droppen!");
@@ -86,7 +90,7 @@ public class SpecialItemListener implements Listener {
         ArenaGame manager = registry.getGameManager(arena.getName());
         if (manager == null) return;
 
-        Role currentRole = RoleManager.getRole(uuid);
+        Role currentRole = manager.getRoles().get(uuid);
         if (currentRole == null) {
             event.setCancelled(true);
             plugin.debug("Pickup-Check: Spieler " + player.getName() + " hat keine Rolle → blockiert.");
@@ -107,9 +111,8 @@ public class SpecialItemListener implements Listener {
         // 🏹 Detective-Bogen
         if (ItemManager.isDetectiveBow(stack)) {
             if (currentRole == Role.BYSTANDER) {
-                // Rolle global updaten
-                RoleManager.setRole(uuid, Role.DETECTIVE);
-                // UND in der ArenaGame-Rollenmap
+                // Rolle lokal in Arena aktualisieren
+                manager.getRoleManager().setRole(uuid, Role.DETECTIVE);
                 manager.getRoles().put(uuid, Role.DETECTIVE);
 
                 MessageLimiter.sendPlayerMessage(player, "bow-pickup",

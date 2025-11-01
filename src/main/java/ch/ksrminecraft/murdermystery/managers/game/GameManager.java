@@ -36,6 +36,7 @@ public class GameManager {
     // Manager
     protected final BossBarManager bossBarManager;
     protected final GameTimerManager gameTimerManager;
+    protected final RoleManager roleManager;
 
     // Spielstatus
     protected boolean gameStarted = false;
@@ -58,6 +59,7 @@ public class GameManager {
         this.playerManager = new PlayerManager(this, plugin, arenaManager, configManager);
         this.bossBarManager = new BossBarManager(this);
         this.gameTimerManager = new GameTimerManager(this, plugin);
+        this.roleManager = new RoleManager(plugin);
 
         // Defaults aus Config
         this.minPlayers = configManager.getMinPlayers();
@@ -73,6 +75,7 @@ public class GameManager {
     public Set<UUID> getPlayers() { return players; }
     public Set<UUID> getSpectators() { return spectators; }
     public Map<UUID, Role> getRoles() { return roles; }
+    public RoleManager getRoleManager() { return roleManager; }
 
     public PlayerManager getPlayerManager() { return playerManager; }
     public BossBarManager getBossBarManager() { return bossBarManager; }
@@ -117,7 +120,15 @@ public class GameManager {
     public void startGame() {
         this.gameStarted = true;
         this.roundStats = new RoundStats();
+
         plugin.debug("[GameManager] startGame() → Spiel gestartet, Spieler=" + players.size());
+
+        // --- Rollenverteilung über arena-lokalen RoleManager ---
+        Map<UUID, Role> assigned = roleManager.assignRoles(players);
+        roles.clear();
+        roles.putAll(assigned);
+
+        plugin.debug("[GameManager] startGame() → Rollen wurden Arena-intern gesetzt (" + roles.size() + ")");
     }
 
     public void endRound(RoundResultManager.EndCondition condition) {
@@ -166,10 +177,11 @@ public class GameManager {
             }
         }
 
-        // --- Spielerlisten leeren ---
+        // --- Spielerlisten & Rollen leeren ---
         players.clear();
         spectators.clear();
         roles.clear();
+        roleManager.clearRoles();
         roundStats = null;
         gameStarted = false;
 
@@ -185,13 +197,8 @@ public class GameManager {
     }
 
     public void handleTimeout() {
-        // Standard: Runde mit TIME_UP beenden
         plugin.debug("[GameManager] handleTimeout() → Timeout erkannt, Runde endet als Unentschieden.");
-
-        // EndCondition setzen
         RoundResultManager.EndCondition condition = RoundResultManager.EndCondition.TIME_UP;
-
-        // Runde sauber beenden
         endRound(condition);
     }
 
@@ -203,8 +210,7 @@ public class GameManager {
             spectators.add(uuid);
         }
 
-        // Rolle beibehalten oder ändern?
-        // Für Spectators entfernen wir z. B. die Items
+        // Inventar & Modus anpassen
         victim.getInventory().clear();
         victim.setGameMode(GameMode.SPECTATOR);
 
@@ -216,7 +222,7 @@ public class GameManager {
         String killerName = (killer != null ? killer.getName() : "Umwelt");
         plugin.debug("[GameManager] eliminate() → Opfer=" + victim.getName() + ", Killer=" + killerName);
 
-        // Option: hier Statistiken eintragen
+        // Statistiken aktualisieren
         getOrCreateRoundStats().addKill(killer != null ? killer.getUniqueId() : null, uuid);
 
         // Siegbedingungen prüfen

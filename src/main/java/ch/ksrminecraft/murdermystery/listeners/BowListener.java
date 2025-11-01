@@ -3,7 +3,6 @@ package ch.ksrminecraft.murdermystery.listeners;
 import ch.ksrminecraft.murdermystery.MurderMystery;
 import ch.ksrminecraft.murdermystery.managers.effects.ItemManager;
 import ch.ksrminecraft.murdermystery.managers.game.GameManagerRegistry;
-import ch.ksrminecraft.murdermystery.managers.game.RoleManager;
 import ch.ksrminecraft.murdermystery.model.ArenaGame;
 import ch.ksrminecraft.murdermystery.model.Role;
 import ch.ksrminecraft.murdermystery.utils.MessageLimiter;
@@ -69,7 +68,10 @@ public class BowListener implements Listener {
         // Standard-Schaden komplett verhindern – wir handeln alles selbst
         event.setCancelled(true);
 
-        Role victimRole = RoleManager.getRole(victim.getUniqueId());
+        // --- 🔍 NEU: Arena-lokale Rollenabfrage ---
+        Role victimRole = shooterMgr.getRoles().get(victim.getUniqueId());
+        plugin.debug("[BowListener] " + shooter.getName() + " → Treffer auf " + victim.getName() +
+                " (Rolle: " + victimRole + ", Arena: " + shooterMgr.getArena().getName() + ")");
 
         if (victimRole == Role.MURDERER) {
             // Meldung vor eliminate()

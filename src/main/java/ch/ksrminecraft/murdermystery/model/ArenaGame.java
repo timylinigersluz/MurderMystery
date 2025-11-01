@@ -58,8 +58,8 @@ public class ArenaGame extends GameManager {
 
         plugin.debug("[ArenaGame] startGame() → Arena=" + arena.getName() + ", Spieler=" + getPlayers().size());
 
-        // Rollen zuweisen
-        Map<UUID, Role> assigned = RoleManager.assignRoles(getPlayers());
+        // --- Rollen über arena-lokalen RoleManager zuteilen ---
+        Map<UUID, Role> assigned = getRoleManager().assignRoles(getPlayers());
         roles.clear();
         roles.putAll(assigned);
 
@@ -124,7 +124,7 @@ public class ArenaGame extends GameManager {
                     if (i < spawns.size()) {
                         target = spawns.get(i); // normaler Spawn
                     } else {
-                        target = spawns.get(0); // Fallback auf ersten Spawn
+                        target = spawns.get(0); // Fallback
                     }
 
                     mapManager.teleportPlayer(p, target, "ArenaGameSpawn '" + arena.getName() + "'");
@@ -265,6 +265,7 @@ public class ArenaGame extends GameManager {
         // Spieler gilt als "inGame", wenn er aktiv spielt oder Spectator ist
         return getPlayers().contains(uuid) || getSpectators().contains(uuid);
     }
+
     public MapManager getMapManager() {
         return mapManager;
     }
